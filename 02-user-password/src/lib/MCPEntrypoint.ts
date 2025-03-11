@@ -4,7 +4,9 @@ import { addCorsHeaders } from './OAuthProvider'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { SSEEdgeTransport } from './sseEdge'
 
-export class MCPEntrypoint extends DurableObject {
+export abstract class MCPEntrypoint extends DurableObject {
+  abstract server: McpServer
+
   static Router = class extends WorkerEntrypoint<{ MCP_OBJECT: DurableObjectNamespace<MCPEntrypoint> }> {
     async fetch(request: Request) {
       // const sessionId = c.req.query('sessionId');
@@ -13,19 +15,6 @@ export class MCPEntrypoint extends DurableObject {
       return object.fetch(request)
     }
   }
-
-  server = new McpServer({
-    name: 'Demo',
-    version: '1.0.0',
-  })
-  _ = (() => {
-    this.server.tool('add', 'Add two numbers', async (extra: any) => {
-      const { a, b } = extra.params as { a: number; b: number }
-      return {
-        content: [{ type: 'text', text: String(a + b) }],
-      }
-    })
-  })()
   transport = new SSEEdgeTransport('/sse/message', this.ctx.id.toString())
 
   async fetch(request: Request) {
