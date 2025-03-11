@@ -29,7 +29,6 @@ export class WSServerTransport implements Transport {
 		const [client, server] = Object.values(webSocketPair);
 
 		server.addEventListener('message', async (event) => {
-			console.log(event);
 			let message: JSONRPCMessage;
 			try {
 				// Ensure event.data is a string
@@ -40,6 +39,7 @@ export class WSServerTransport implements Transport {
 				return;
 			}
 
+			console.log('received message', message);
 			this.onmessage?.(message);
 		});
 
@@ -66,6 +66,7 @@ export class WSServerTransport implements Transport {
 			throw new Error('Not connected');
 		}
 
+		console.log('sending message', message);
 		this._server.send(JSON.stringify(message));
 	}
 
