@@ -17,7 +17,7 @@
     "bindings": [
       {
         "class_name": "MyMCP",
-        "name": "MY_MCP"
+        "name": "MCP_OBJECT"
       }
     ]
   },

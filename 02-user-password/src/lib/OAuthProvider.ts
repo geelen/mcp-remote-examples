@@ -661,7 +661,7 @@ class OAuthProviderImpl {
         (this.options.clientRegistrationEndpoint && this.isClientRegistrationEndpoint(url))
       ) {
         // Create an empty 204 No Content response with CORS headers
-        return this.addCorsHeaders(
+        return addCorsHeaders(
           new Response(null, {
             status: 204,
             headers: { 'Content-Length': '0' },
@@ -676,25 +676,25 @@ class OAuthProviderImpl {
     // Handle .well-known/oauth-authorization-server
     if (url.pathname === '/.well-known/oauth-authorization-server') {
       const response = await this.handleMetadataDiscovery(url)
-      return this.addCorsHeaders(response, request)
+      return addCorsHeaders(response, request)
     }
 
     // Handle token endpoint
     if (this.isTokenEndpoint(url)) {
       const response = await this.handleTokenRequest(request, env)
-      return this.addCorsHeaders(response, request)
+      return addCorsHeaders(response, request)
     }
 
     // Handle client registration endpoint
     if (this.options.clientRegistrationEndpoint && this.isClientRegistrationEndpoint(url)) {
       const response = await this.handleClientRegistration(request, env)
-      return this.addCorsHeaders(response, request)
+      return addCorsHeaders(response, request)
     }
 
     // Check if it's an API request
     if (this.isApiRequest(url)) {
       const response = await this.handleApiRequest(request, env, ctx)
-      return this.addCorsHeaders(response, request)
+      return addCorsHeaders(response, request)
     }
 
     // Inject OAuth helpers into env if not already present
@@ -807,35 +807,6 @@ class OAuthProviderImpl {
       // It's already a full URL
       return endpoint
     }
-  }
-
-  /**
-   * Adds CORS headers to a response
-   * @param response - The response to add CORS headers to
-   * @param request - The original request
-   * @returns A new Response with CORS headers added
-   */
-  private addCorsHeaders(response: Response, request: Request): Response {
-    // Get the Origin header from the request
-    const origin = request.headers.get('Origin')
-
-    // If there's no Origin header, return the original response
-    if (!origin) {
-      return response
-    }
-
-    // Create a new response that copies all properties from the original response
-    // This makes the response mutable so we can modify its headers
-    const newResponse = new Response(response.body, response)
-
-    // Add CORS headers
-    newResponse.headers.set('Access-Control-Allow-Origin', origin)
-    newResponse.headers.set('Access-Control-Allow-Methods', '*')
-    // Include Authorization explicitly since it's not included in * for security reasons
-    newResponse.headers.set('Access-Control-Allow-Headers', 'Authorization, *')
-    newResponse.headers.set('Access-Control-Max-Age', '86400') // 24 hours
-
-    return newResponse
   }
 
   /**
@@ -2227,6 +2198,35 @@ class OAuthHelpersImpl implements OAuthHelpers {
     // After all tokens are deleted, delete the grant itself
     await this.env.OAUTH_KV.delete(grantKey)
   }
+}
+
+/**
+ * Adds CORS headers to a response
+ * @param response - The response to add CORS headers to
+ * @param request - The original request
+ * @returns A new Response with CORS headers added
+ */
+export function addCorsHeaders(response: Response, request: Request): Response {
+  // Get the Origin header from the request
+  const origin = request.headers.get('Origin')
+
+  // If there's no Origin header, return the original response
+  if (!origin) {
+    return response
+  }
+
+  // Create a new response that copies all properties from the original response
+  // This makes the response mutable so we can modify its headers
+  const newResponse = new Response(response.body, response)
+
+  // Add CORS headers
+  newResponse.headers.set('Access-Control-Allow-Origin', origin)
+  newResponse.headers.set('Access-Control-Allow-Methods', '*')
+  // Include Authorization explicitly since it's not included in * for security reasons
+  newResponse.headers.set('Access-Control-Allow-Headers', 'Authorization, *')
+  newResponse.headers.set('Access-Control-Max-Age', '86400') // 24 hours
+
+  return newResponse
 }
 
 /**
