@@ -992,7 +992,7 @@ class OAuthProviderImpl {
    */
   private async handleAuthorizationCodeGrant(body: any, clientInfo: ClientInfo | null, env: any): Promise<Response> {
     const code = body.code
-    const redirectUri = body.redirect_uri
+    const redirectUri = body.redirect_uri || clientInfo?.redirectUris?.[0]
     const codeVerifier = body.code_verifier
 
     if (!code) {
