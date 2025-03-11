@@ -1,4 +1,3 @@
-import './routes'
 import app from './routes'
 import OAuthProvider from './lib/OAuthProvider'
 import { MCPEntrypoint } from './lib/MCPEntrypoint'
