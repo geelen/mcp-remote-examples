@@ -9,7 +9,7 @@
   "compatibility_date": "2025-03-10",
   "migrations": [
     {
-      "new_classes": ["MyDurableObject"],
+      "new_sqlite_classes": ["MyDurableObject"],
       "tag": "v1"
     }
   ],
