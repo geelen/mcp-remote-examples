@@ -1,5 +1,5 @@
 // Helper to generate the layout
-import { html } from 'hono/dist/types/helper/html'
+import { html } from 'hono/html'
 
 export const layout = (content: string, title: string, isLoggedIn: boolean) => html`
   <!DOCTYPE html>
