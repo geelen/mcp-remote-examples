@@ -11,7 +11,8 @@ export abstract class MCPEntrypoint extends DurableObject {
     async fetch(request: Request) {
       const url = new URL(request.url)
       // ctx.props can identify the user if the sessionId isn't provided
-      const sessionId = url.searchParams.get('sessionId') || JSON.stringify(this.ctx.props)
+      // console.log(url, this.ctx.props, url.searchParams.get('sessionId'))
+      const sessionId = this.ctx.props.userEmail
       const object = this.env.MCP_OBJECT.get(this.env.MCP_OBJECT.idFromName(sessionId))
       return object.fetch(request)
     }
