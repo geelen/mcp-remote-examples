@@ -1,0 +1,24 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "mcp-server-do",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-03-03",
+	"migrations": [
+		{
+			"new_classes": ["MyMcpServerDurableObject"],
+			"tag": "v1",
+		},
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "MyMcpServerDurableObject",
+				"name": "MCP_DO",
+			},
+		],
+	},
+	"observability": {
+		"enabled": true,
+	},
+	"placement": { "mode": "smart" },
+}

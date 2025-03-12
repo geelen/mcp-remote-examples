@@ -1,0 +1,21 @@
+{
+	"name": "mcp-server-do",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20250303.0",
+		"@types/content-type": "^1.1.8",
+		"typescript": "^5.5.2",
+		"wrangler": "^3.114.0"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.6.1",
+		"content-type": "^1.0.5"
+	}
+}
