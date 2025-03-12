@@ -9,8 +9,9 @@ export abstract class MCPEntrypoint extends DurableObject {
 
   static Router = class extends WorkerEntrypoint<{ MCP_OBJECT: DurableObjectNamespace<MCPEntrypoint> }> {
     async fetch(request: Request) {
-      // const sessionId = c.req.query('sessionId');
-      const sessionId = this.ctx.props.userEmail // todo: types
+      const url = new URL(request.url)
+      // ctx.props can identify the user if the sessionId isn't provided
+      const sessionId = url.searchParams.get('sessionId') || JSON.stringify(this.ctx.props)
       const object = this.env.MCP_OBJECT.get(this.env.MCP_OBJECT.idFromName(sessionId))
       return object.fetch(request)
     }
