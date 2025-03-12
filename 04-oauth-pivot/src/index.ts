@@ -47,6 +47,15 @@ export class MyMCP extends MCPEntrypoint<Props> {
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
 
+/**
+ * OAuth Authorization Endpoint
+ *
+ * This route initiates the GitHub OAuth flow when a user wants to log in.
+ * It creates a random state parameter to prevent CSRF attacks and stores the
+ * original OAuth request information in KV storage for later retrieval.
+ * Then it redirects the user to GitHub's authorization page with the appropriate
+ * parameters so the user can authenticate and grant permissions.
+ */
 app.get('/authorize', async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw)
   // Store the request info in KV to catch ya up on the rebound
@@ -63,6 +72,14 @@ app.get('/authorize', async (c) => {
   return Response.redirect(upstream.href)
 })
 
+/**
+ * OAuth Callback Endpoint
+ *
+ * This route handles the callback from GitHub after user authentication.
+ * It exchanges the temporary code for an access token, then stores some
+ * user metadata & the auth token as part of the 'props' on the token passed
+ * down to the client. It ends by redirecting the client back to _its_ callback URL
+ */
 app.get('/callback', async (c) => {
   const code = c.req.query('code') as string
 
