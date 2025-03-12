@@ -15,7 +15,9 @@ To try it out, run
 npx @modelcontextprotocol/inspector@latest
 ```
 
-Then enter `https://04-oauth-pivot.glen.workers.dev/sse` and hit connect. Follow the prompts, then see if the tool calls work.
+Then enter `https://04-oauth-pivot.glen.workers.dev/sse` and hit connect. Follow the prompts, then see if the tool calls work:
+
+<img width="640" alt="image" src="https://github.com/user-attachments/assets/7973f392-0a9d-4712-b679-6dd23f824287" />
 
 The [`src/index.ts`](src/index.ts) file has three parts, the MCP server definition (iterating on the `MCPEntrypoint` API from example 02):
 
