@@ -1,5 +1,5 @@
 import app from './routes'
-import OAuthProvider from './lib/OAuthProvider'
+import OAuthProvider from 'workers-oauth-provider'
 import { MCPEntrypoint } from './lib/MCPEntrypoint'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'

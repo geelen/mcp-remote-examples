@@ -1,4 +1,5 @@
 {
+  "main": "oauth-provider.ts",
   "dependencies": {
     "@cloudflare/workers-types": "^4.20250303.0"
   },

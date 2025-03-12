@@ -1,8 +1,8 @@
 import { DurableObject } from 'cloudflare:workers'
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { addCorsHeaders } from './OAuthProvider'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { SSEEdgeTransport } from './sseEdge'
+import { addCorsHeaders } from './utils'
 
 export abstract class MCPEntrypoint extends DurableObject {
   abstract server: McpServer
@@ -23,10 +23,6 @@ export abstract class MCPEntrypoint extends DurableObject {
     if (url.pathname === '/sse') {
       await this.server.connect(this.transport)
       return addCorsHeaders(this.transport.sseResponse, request)
-      // console.log(this.ctx.props)
-      // console.log(Object.fromEntries(request.headers.entries()))
-
-      // return new Response('Hello World', { status: 200 }), request)
     }
 
     if (url.pathname === '/sse/message') {
