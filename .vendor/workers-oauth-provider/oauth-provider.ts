@@ -1036,16 +1036,8 @@ class OAuthProviderImpl {
       );
     }
 
-    // OAuth 2.1 requires redirect_uri parameter
-    if (!redirectUri) {
-      return createErrorResponse(
-        'invalid_request',
-        'redirect_uri is required'
-      );
-    }
-
-    // OAuth 2.1 requires exact match for redirect URIs
-    if (!clientInfo.redirectUris.includes(redirectUri)) {
+    // OAuth 2.1 requires exact match for redirect URIs, if provided
+    if (redirectUri && !clientInfo.redirectUris.includes(redirectUri)) {
       return createErrorResponse(
         'invalid_grant',
         'Invalid redirect URI'
