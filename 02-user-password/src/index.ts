@@ -5,18 +5,20 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
 export class MyMCP extends MCPEntrypoint {
-  server = new McpServer({
-    name: 'Demo',
-    version: '1.0.0',
-  })
-  _ = (() => {
-    this.server.tool('add', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
+  get server() {
+    const server = new McpServer({
+      name: 'Demo',
+      version: '1.0.0',
+    })
+    server.tool('add', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
       content: [{ type: 'text', text: String(a + b) }],
     }))
-  })()
+    return server
+  }
 }
 
-export const MyOauth = new OAuthProvider({
+// Export the OAuth handler as the default
+export default new OAuthProvider({
   apiRoute: '/sse',
   apiHandler: MyMCP.Router,
   defaultHandler: app,
@@ -24,5 +26,3 @@ export const MyOauth = new OAuthProvider({
   tokenEndpoint: '/token',
   clientRegistrationEndpoint: '/register',
 })
-
-export default MyOauth
