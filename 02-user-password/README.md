@@ -23,4 +23,33 @@ In both cases, you should be prompted with a (fake) user/password login screen. 
 
 Or, hit refresh. 50% of the time the server pretends you're already logged in and just asks for click confirmation.
 
-## 
+## Usage
+
+See `src/index.ts` for usage. The current (wip) API looks as follows:
+
+```ts
+export class MyMCP extends MCPEntrypoint {
+  get server() {
+    const server = new McpServer({
+      name: 'Demo',
+      version: '1.0.0',
+    })
+    server.tool('add', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
+      content: [{ type: 'text', text: String(a + b) }],
+    }))
+    return server
+  }
+}
+
+// Export the OAuth handler as the default
+export default new OAuthProvider({
+  apiRoute: '/sse',
+  apiHandler: MyMCP.Router,
+  defaultHandler: app,
+  authorizeEndpoint: '/authorize',
+  tokenEndpoint: '/token',
+  clientRegistrationEndpoint: '/register',
+})
+```
+
+`MyMCP` is a `DurableObject` here, `MyMCP.Router` is a `WorkerEntrypoint` that can route to it. The implementation is pretty coupled to the specifics of this app (i.e. needs to know `/sse` is the API route, DO namespace is on `env.MCP_OBJECT` etc) but it's a useful first pass.
