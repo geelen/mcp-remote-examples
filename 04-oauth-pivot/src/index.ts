@@ -7,7 +7,7 @@ import pick from 'just-pick'
 import { Octokit } from 'octokit'
 
 // Context from the auth process, encrypted & stored in the auth token
-// and provided to the MCP Server as ctx.props
+// and provided to the MCP Server as this.props
 type Props = {
   login: string
   name: string
@@ -39,7 +39,7 @@ export class MyMCP extends MCPEntrypoint<Props> {
 
     server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
       const octokit = new Octokit({ auth: this.props.accessToken })
-      return { content: [{ type: 'text', text: JSON.stringify(octokit.rest.users.getAuthenticated()) }] }
+      return { content: [{ type: 'text', text: JSON.stringify(await octokit.rest.users.getAuthenticated()) }] }
     })
     return server
   }
