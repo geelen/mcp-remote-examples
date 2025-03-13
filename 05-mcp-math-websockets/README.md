@@ -6,7 +6,7 @@ A reference implementation demonstrating the [Model Context Protocol (MCP)](http
 
 This repository provides a reference implementation of MCP over WebSockets. It showcases:
 
-- A custom Websocket-based Server Transport
+- A custom Websocket-based Server Transport (`src/api/websocket.ts`)
 - Complete MCP client-server architecture
 - Bidirectional real-time communication over WebSockets
 - Tool discovery and invocation
