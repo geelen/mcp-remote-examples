@@ -120,6 +120,17 @@ app.get('/authorize', async (c) => {
     return c.html(layout('MCP Remote Auth Demo - Authorization', script))
 })
 
+app.get('/', async (c) => {
+    const script = `
+        <script type="module">
+            document.querySelector('#entrypoint').innerHTML = 'Plug in <b><code>'+
+             window.location.href + 'sse' + 
+             '</code></b> to your MCP instance to access this demo.';
+        </script>
+    `
+    return c.html(layout('MCP Remote Auth Demo - Authorization', script))
+})
+
 export default new StytchOAuthProvider({
     apiRoute: '/sse',
     apiHandler: MyMCP.Router,
