@@ -1,41 +1,16 @@
-# React + Vite + Hono + Cloudflare Workers
+# WebSockets MCP Math Demo
 
-This template provides a minimal setup for building a React application with TypeScript and Vite, designed to run on Cloudflare Workers. It features hot module replacement, ESLint integration, and the flexibility of Workers deployments.
+A reference implementation demonstrating the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) over WebSockets using Cloudflare Workers and Durable Objects.
 
-![React + TypeScript + Vite + Cloudflare Workers](https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/fc7b4b62-442b-4769-641b-ad4422d74300/public)
+## Overview
 
-<!-- dash-content-start -->
+This repository provides a reference implementation of MCP over WebSockets. It showcases:
 
-🚀 Supercharge your web development with this powerful stack:
-
-- [**React**](https://react.dev/) - A modern UI library for building interactive interfaces
-- [**Vite**](https://vite.dev/) - Lightning-fast build tooling and development server
-- [**Hono**](https://hono.dev/) - Ultralight, modern backend framework
-- [**Cloudflare Workers**](https://developers.cloudflare.com/workers/) - Edge computing platform for global deployment
-
-### ✨ Key Features
-
-- 🔥 Hot Module Replacement (HMR) for rapid development
-- 📦 TypeScript support out of the box
-- 🛠️ ESLint configuration included
-- ⚡ Zero-config deployment to Cloudflare's global network
-- 🎯 API routes with Hono's elegant routing
-- 🔄 Full-stack development setup
-
-Get started in minutes with local development or deploy directly via the Cloudflare dashboard. Perfect for building modern, performant web applications at the edge.
-
-<!-- dash-content-end -->
-
-## Getting Started
-
-To start a new project with this template, run:
-
-```bash
-npm create cloudflare@latest -- --template=cloudflare/templates/vite-react-template
-```
-
-A live deployment of this template is available at:
-[https://react-vite-template.templates.workers.dev](https://react-vite-template.templates.workers.dev)
+- A custom Websocket-based Server Transport
+- Complete MCP client-server architecture
+- Bidirectional real-time communication over WebSockets
+- Tool discovery and invocation
+- Deployment using Cloudflare Workers
 
 ## Development
 
@@ -53,28 +28,35 @@ npm run dev
 
 Your application will be available at [http://localhost:5173](http://localhost:5173).
 
-## Production
-
-Build your project for production:
+## Deployment
 
 ```bash
-npm run build
+npx deploy
 ```
 
-Preview your build locally:
+## Architecture
 
-```bash
-npm run preview
+This project demonstrates a full MCP implementation over WebSockets with both client and server components:
+
+```
+┌─────────────────┐                 ┌─────────────────┐
+│                 │                 │                 │
+│  MCP Client     │◄───WebSocket───►│  MCP Server     │
+│  (CF Worker)    │                 │  (CF Worker)    │
+│                 │      HTTP       │                 │
+└─────────────────┘───────────────► └─────────────────┘
+                                        │
+                                        │ State Persistence
+                                        ▼
+                                  ┌─────────────────┐
+                                  │  Durable Object │
+                                  │                 │
+                                  └─────────────────┘
 ```
 
-Deploy your project to Cloudflare Workers:
+- **Client**: A Cloudflare Worker that serves the HTML/JS client application
+- **Server**: A Cloudflare Worker that implements the MCP protocol with tool endpoints
+- **Durable Objects**: Maintains persistent state for each agent session
 
-```bash
-npx wrangler deploy
-```
 
-## Additional Resources
 
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- [Vite Documentation](https://vitejs.dev/guide/)
-- [React Documentation](https://reactjs.org/)
