@@ -2,6 +2,8 @@
 
 A reference implementation demonstrating the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) over WebSockets using Cloudflare Workers and Durable Objects.
 
+You can find a running version here: https://mcp-math-websockets.baselime.workers.dev/
+
 ## Overview
 
 This repository provides a reference implementation of MCP over WebSockets. It showcases:
