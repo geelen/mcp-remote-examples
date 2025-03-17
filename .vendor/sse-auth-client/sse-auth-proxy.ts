@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
-// sse-auth-client.ts - MCP Client with OAuth support
-// Run with: npx tsx sse-auth-client.ts sse-auth-client.ts https://example.remote/server [callback-port]
+// sse-auth-proxy.ts - MCP Proxy with OAuth support
+// Run with: npx tsx sse-auth-proxy.ts https://example.remote/server [callback-port]
 
 import express from 'express'
 import open from 'open'
 import fs from 'fs/promises'
 import path from 'path'
-import os from 'os'
 import crypto from 'crypto'
 import { EventEmitter } from 'events'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { OAuthClientProvider, auth, UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { ListResourcesResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import {
   OAuthClientInformation,
   OAuthClientInformationFull,
@@ -21,6 +20,7 @@ import {
   OAuthTokens,
   OAuthTokensSchema,
 } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 // Implement OAuth client provider for Node.js environment
 class NodeOAuthClientProvider implements OAuthClientProvider {
@@ -46,7 +46,7 @@ class NodeOAuthClientProvider implements OAuthClientProvider {
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      client_name: 'MCP CLI Client',
+      client_name: 'MCP CLI Proxy',
       client_uri: 'https://github.com/modelcontextprotocol/mcp-cli',
     }
   }
@@ -123,12 +123,12 @@ class NodeOAuthClientProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    console.log(`\nPlease authorize this client by visiting:\n${authorizationUrl.toString()}\n`)
+    console.error(`\nPlease authorize this client by visiting:\n${authorizationUrl.toString()}\n`)
     try {
       await open(authorizationUrl.toString())
-      console.log('Browser opened automatically.')
+      console.error('Browser opened automatically.')
     } catch (error) {
-      console.log('Could not open browser automatically. Please copy and paste the URL above into your browser.')
+      console.error('Could not open browser automatically. Please copy and paste the URL above into your browser.')
     }
   }
 
@@ -141,50 +141,76 @@ class NodeOAuthClientProvider implements OAuthClientProvider {
   }
 }
 
-// Main function to run the client
-async function runClient(serverUrl: string, callbackPort: number) {
+// Function to proxy messages between two transports
+function mcpProxy({ transportToClient, transportToServer }: { transportToClient: Transport; transportToServer: Transport }) {
+  let transportToClientClosed = false
+  let transportToServerClosed = false
+
+  transportToClient.onmessage = (message) => {
+    console.error('[Local→Remote]', message.method || message.id)
+    transportToServer.send(message).catch(onServerError)
+  }
+
+  transportToServer.onmessage = (message) => {
+    console.error('[Remote→Local]', message.method || message.id)
+    transportToClient.send(message).catch(onClientError)
+  }
+
+  transportToClient.onclose = () => {
+    if (transportToServerClosed) {
+      return
+    }
+
+    transportToClientClosed = true
+    transportToServer.close().catch(onServerError)
+  }
+
+  transportToServer.onclose = () => {
+    if (transportToClientClosed) {
+      return
+    }
+    transportToServerClosed = true
+    transportToClient.close().catch(onClientError)
+  }
+
+  transportToClient.onerror = onClientError
+  transportToServer.onerror = onServerError
+
+  function onClientError(error: Error) {
+    console.error('Error from local client:', error)
+  }
+
+  function onServerError(error: Error) {
+    console.error('Error from remote server:', error)
+  }
+}
+
+// Main function to run the proxy
+async function runProxy(serverUrl: string, callbackPort: number) {
   // Set up event emitter for auth flow
   const events = new EventEmitter()
 
   // Create the OAuth client provider
   const authProvider = new NodeOAuthClientProvider(serverUrl, callbackPort)
 
-  // Create the client
-  const client = new Client(
+  // Create the local STDIO server
+  const server = new Server(
     {
-      name: 'mcp-cli',
+      name: 'mcp-proxy',
       version: '0.1.0',
     },
     {
       capabilities: {
-        sampling: {},
+        prompts: {},
+        resources: {},
+        tools: {},
+        logging: {},
       },
     },
   )
 
-  // Create the transport
-  const url = new URL(serverUrl)
-
-  function initTransport() {
-    const transport = new SSEClientTransport(url, { authProvider })
-
-    // Set up message and error handlers
-    transport.onmessage = (message) => {
-      console.log('Received message:', JSON.stringify(message, null, 2))
-    }
-
-    transport.onerror = (error) => {
-      console.error('Transport error:', error)
-    }
-
-    transport.onclose = () => {
-      console.log('Connection closed.')
-      process.exit(0)
-    }
-    return transport
-  }
-
-  const transport = initTransport()
+  // Create the STDIO transport
+  const serverTransport = new StdioServerTransport()
 
   // Set up an HTTP server to handle OAuth callback
   let authCode: string | null = null
@@ -204,8 +230,8 @@ async function runClient(serverUrl: string, callbackPort: number) {
     events.emit('auth-code-received', code)
   })
 
-  const server = app.listen(callbackPort, () => {
-    console.log(`OAuth callback server running at http://localhost:${callbackPort}`)
+  const httpServer = app.listen(callbackPort, () => {
+    console.error(`OAuth callback server running at http://localhost:${callbackPort}`)
   })
 
   // Function to wait for auth code
@@ -222,73 +248,76 @@ async function runClient(serverUrl: string, callbackPort: number) {
     })
   }
 
-  // Try to connect
-  try {
-    console.log('Connecting to server...')
-    await client.connect(transport)
-    console.log('Connected successfully!')
+  // Function to create and connect to remote server, handling auth
+  const connectToRemoteServer = async (): Promise<SSEClientTransport> => {
+    console.error('Connecting to remote server:', serverUrl)
+    const url = new URL(serverUrl)
+    const transport = new SSEClientTransport(url, { authProvider })
 
-    // Send a resources/list request
-    // console.log("Requesting resource list...");
-    // const result = await client.request({ method: "resources/list" }, ListResourcesResultSchema);
-    // console.log("Resources:", JSON.stringify(result, null, 2));
+    try {
+      await transport.start()
+      console.error('Connected to remote server')
+      return transport
+    } catch (error) {
+      if (error instanceof UnauthorizedError || (error instanceof Error && error.message.includes('Unauthorized'))) {
+        console.error('Authentication required. Waiting for authorization...')
 
-    console.log('Request tools list...')
-    const tools = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
-    console.log('Tools:', JSON.stringify(tools, null, 2))
+        // Wait for the authorization code from the callback
+        const code = await waitForAuthCode()
 
-    console.log('Listening for messages. Press Ctrl+C to exit.')
-  } catch (error) {
-    if (error instanceof UnauthorizedError || (error instanceof Error && error.message.includes('Unauthorized'))) {
-      console.log('Authentication required. Waiting for authorization...')
+        try {
+          console.error('Completing authorization...')
+          await transport.finishAuth(code)
 
-      // Wait for the authorization code from the callback
-      const code = await waitForAuthCode()
-
-      try {
-        console.log('Completing authorization...')
-        await transport.finishAuth(code)
-
-        // Start a new transport here? Ok cause it's going to write to the file maybe?
-
-        // Reconnect after authorization
-        console.log('Connecting after authorization...')
-        await client.connect(initTransport())
-
-        console.log('Connected successfully!')
-
-        // // Send a resources/list request
-        // console.log("Requesting resource list...");
-        // const result = await client.request({ method: "resources/list" }, ListResourcesResultSchema);
-        // console.log("Resources:", JSON.stringify(result, null, 2));2));
-
-        console.log('Request tools list...')
-        const tools = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
-        console.log('Tools:', JSON.stringify(tools, null, 2))
-
-        console.log('Listening for messages. Press Ctrl+C to exit.')
-      } catch (authError) {
-        console.error('Authorization error:', authError)
-        server.close()
-        process.exit(1)
+          // Create a new transport after auth
+          const newTransport = new SSEClientTransport(url, { authProvider })
+          await newTransport.start()
+          console.error('Connected to remote server after authentication')
+          return newTransport
+        } catch (authError) {
+          console.error('Authorization error:', authError)
+          throw authError
+        }
+      } else {
+        console.error('Connection error:', error)
+        throw error
       }
-    } else {
-      console.error('Connection error:', error)
-      server.close()
-      process.exit(1)
     }
   }
 
-  // Handle shutdown
-  process.on('SIGINT', async () => {
-    console.log('\nClosing connection...')
-    await client.close()
-    server.close()
-    process.exit(0)
-  })
+  try {
+    // Start local server
+    await server.connect(serverTransport)
+    console.error('Local STDIO server running')
 
-  // Keep the process alive
-  process.stdin.resume()
+    // Connect to remote server
+    const clientTransport = await connectToRemoteServer()
+
+    // Set up bidirectional proxy
+    mcpProxy({
+      transportToClient: serverTransport,
+      transportToServer: clientTransport,
+    })
+
+    console.error('Proxy established successfully')
+    console.error('Press Ctrl+C to exit')
+
+    // Handle shutdown
+    process.on('SIGINT', async () => {
+      console.error('\nShutting down proxy...')
+      await clientTransport.close()
+      await server.close()
+      httpServer.close()
+      process.exit(0)
+    })
+
+    // Keep the process alive
+    process.stdin.resume()
+  } catch (error) {
+    console.error('Fatal error:', error)
+    httpServer.close()
+    process.exit(1)
+  }
 }
 
 // Parse command-line arguments
@@ -297,11 +326,11 @@ const serverUrl = args[0]
 const callbackPort = args[1] ? parseInt(args[1]) : 3333
 
 if (!serverUrl || !serverUrl.startsWith('https://')) {
-  console.error('Usage: node --experimental-strip-types sse-auth-client.ts <https://server-url> [callback-port]')
+  console.error('Usage: npx tsx sse-auth-proxy.ts <https://server-url> [callback-port]')
   process.exit(1)
 }
 
-runClient(serverUrl, callbackPort).catch((error) => {
+runProxy(serverUrl, callbackPort).catch((error) => {
   console.error('Fatal error:', error)
   process.exit(1)
 })
