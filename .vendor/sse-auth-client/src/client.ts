@@ -5,6 +5,8 @@
  * A command-line client that connects to an MCP server using SSE with OAuth authentication.
  *
  * Run with: npx tsx client.ts https://example.remote/server [callback-port]
+ *
+ * If callback-port is not specified, an available port will be automatically selected.
  */
 
 import { EventEmitter } from 'events'
@@ -138,13 +140,11 @@ async function runClient(serverUrl: string, callbackPort: number) {
 }
 
 // Parse command-line arguments and run the client
-const { serverUrl, callbackPort } = parseCommandLineArgs(
-  process.argv.slice(2),
-  3333,
-  'Usage: npx tsx client.ts <https://server-url> [callback-port]',
-)
-
-runClient(serverUrl, callbackPort).catch((error) => {
-  console.error('Fatal error:', error)
-  process.exit(1)
-})
+parseCommandLineArgs(process.argv.slice(2), 3333, 'Usage: npx tsx client.ts <https://server-url> [callback-port]')
+  .then(({ serverUrl, callbackPort }) => {
+    return runClient(serverUrl, callbackPort)
+  })
+  .catch((error) => {
+    console.error('Fatal error:', error)
+    process.exit(1)
+  })

@@ -5,6 +5,8 @@
  * A bidirectional proxy between a local STDIO MCP server and a remote SSE server with OAuth authentication.
  *
  * Run with: npx tsx proxy.ts https://example.remote/server [callback-port]
+ *
+ * If callback-port is not specified, an available port will be automatically selected.
  */
 
 import { EventEmitter } from 'events'
@@ -73,13 +75,11 @@ async function runProxy(serverUrl: string, callbackPort: number) {
 }
 
 // Parse command-line arguments and run the proxy
-const { serverUrl, callbackPort } = parseCommandLineArgs(
-  process.argv.slice(2),
-  3334,
-  'Usage: npx tsx proxy.ts <https://server-url> [callback-port]',
-)
-
-runProxy(serverUrl, callbackPort).catch((error) => {
-  console.error('Fatal error:', error)
-  process.exit(1)
-})
+parseCommandLineArgs(process.argv.slice(2), 3334, 'Usage: npx tsx proxy.ts <https://server-url> [callback-port]')
+  .then(({ serverUrl, callbackPort }) => {
+    return runProxy(serverUrl, callbackPort)
+  })
+  .catch((error) => {
+    console.error('Fatal error:', error)
+    process.exit(1)
+  })

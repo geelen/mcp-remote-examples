@@ -10,6 +10,7 @@ import path from 'path'
 import os from 'os'
 import crypto from 'crypto'
 import { EventEmitter } from 'events'
+import net from 'net'
 import { OAuthClientProvider, UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
@@ -378,19 +379,58 @@ export function mcpProxy({ transportToClient, transportToServer }: { transportTo
 }
 
 /**
+ * Finds an available port on the local machine
+ * @param preferredPort Optional preferred port to try first
+ * @returns A promise that resolves to an available port number
+ */
+export async function findAvailablePort(preferredPort?: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        // If preferred port is in use, get a random port
+        server.listen(0)
+      } else {
+        reject(err)
+      }
+    })
+
+    server.on('listening', () => {
+      const { port } = server.address() as net.AddressInfo
+      server.close(() => {
+        resolve(port)
+      })
+    })
+
+    // Try preferred port first, or get a random port
+    server.listen(preferredPort || 0)
+  })
+}
+
+/**
  * Parses command line arguments for MCP clients and proxies
  * @param args Command line arguments
- * @param defaultPort Default port for the callback server
+ * @param defaultPort Default port for the callback server if specified port is unavailable
  * @param usage Usage message to show on error
- * @returns An object with parsed serverUrl and callbackPort
+ * @returns A promise that resolves to an object with parsed serverUrl and callbackPort
  */
-export function parseCommandLineArgs(args: string[], defaultPort: number, usage: string) {
+export async function parseCommandLineArgs(args: string[], defaultPort: number, usage: string) {
   const serverUrl = args[0]
-  const callbackPort = args[1] ? parseInt(args[1]) : defaultPort
+  const specifiedPort = args[1] ? parseInt(args[1]) : undefined
 
   if (!serverUrl || !serverUrl.startsWith('https://')) {
     console.error(usage)
     process.exit(1)
+  }
+
+  // Use the specified port, or find an available one
+  const callbackPort = specifiedPort || (await findAvailablePort(defaultPort))
+
+  if (specifiedPort) {
+    console.error(`Using specified callback port: ${callbackPort}`)
+  } else {
+    console.error(`Using automatically selected callback port: ${callbackPort}`)
   }
 
   return { serverUrl, callbackPort }
