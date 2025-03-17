@@ -54,7 +54,7 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
    * Creates a new NodeOAuthClientProvider
    * @param options Configuration options for the provider
    */
-  constructor(options: OAuthProviderOptions) {
+  constructor(readonly options: OAuthProviderOptions) {
     this.serverUrlHash = crypto.createHash('md5').update(options.serverUrl).digest('hex')
     this.configDir = options.configDir || path.join(os.homedir(), '.mcp-auth')
     this.callbackPath = options.callbackPath || '/oauth/callback'
@@ -76,16 +76,6 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
       client_uri: this.clientUri,
     }
   }
-
-  get options(): OAuthProviderOptions {
-    return {
-      serverUrl: '',
-      callbackPort: 0,
-      ...this._options,
-    }
-  }
-
-  private _options: OAuthProviderOptions
 
   /**
    * Ensures the configuration directory exists
