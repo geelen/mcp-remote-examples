@@ -193,24 +193,8 @@ async function runProxy(serverUrl: string, callbackPort: number) {
   // Create the OAuth client provider
   const authProvider = new NodeOAuthClientProvider(serverUrl, callbackPort)
 
-  // Create the local STDIO server
-  const server = new Server(
-    {
-      name: 'mcp-proxy',
-      version: '0.1.0',
-    },
-    {
-      capabilities: {
-        prompts: {},
-        resources: {},
-        tools: {},
-        logging: {},
-      },
-    },
-  )
-
   // Create the STDIO transport
-  const serverTransport = new StdioServerTransport()
+  const localTransport = new StdioServerTransport()
 
   // Set up an HTTP server to handle OAuth callback
   let authCode: string | null = null
@@ -287,17 +271,19 @@ async function runProxy(serverUrl: string, callbackPort: number) {
 
   try {
     // Start local server
-    await server.connect(serverTransport)
-    console.error('Local STDIO server running')
+    // await server.connect(serverTransport)
 
     // Connect to remote server
-    const clientTransport = await connectToRemoteServer()
+    const remoteTransport = await connectToRemoteServer()
 
     // Set up bidirectional proxy
     mcpProxy({
-      transportToClient: serverTransport,
-      transportToServer: clientTransport,
+      transportToClient: localTransport,
+      transportToServer: remoteTransport,
     })
+
+    await localTransport.start()
+    console.error('Local STDIO server running')
 
     console.error('Proxy established successfully')
     console.error('Press Ctrl+C to exit')
@@ -305,8 +291,8 @@ async function runProxy(serverUrl: string, callbackPort: number) {
     // Handle shutdown
     process.on('SIGINT', async () => {
       console.error('\nShutting down proxy...')
-      await clientTransport.close()
-      await server.close()
+      await remoteTransport.close()
+      await localTransport.close()
       httpServer.close()
       process.exit(0)
     })
