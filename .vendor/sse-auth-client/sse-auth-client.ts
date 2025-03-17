@@ -33,7 +33,7 @@ class NodeOAuthClientProvider implements OAuthClientProvider {
     private callbackPath: string = '/oauth/callback',
   ) {
     this.serverUrlHash = crypto.createHash('md5').update(serverUrl).digest('hex')
-    this.configDir = path.join(process.cwd(), '.mcp-cli')
+    this.configDir = path.join(os.homedir(), '.mcp-auth')
   }
 
   get redirectUrl(): string {

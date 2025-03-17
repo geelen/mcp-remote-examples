@@ -1,4 +1,6 @@
 {
+  "name": "mcp-remote",
+  "version": "0.0.1",
   "type": "module",
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",

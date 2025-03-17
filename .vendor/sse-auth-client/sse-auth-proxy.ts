@@ -21,6 +21,7 @@ import {
   OAuthTokensSchema,
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import os from 'os'
 
 // Implement OAuth client provider for Node.js environment
 class NodeOAuthClientProvider implements OAuthClientProvider {
@@ -29,11 +30,11 @@ class NodeOAuthClientProvider implements OAuthClientProvider {
 
   constructor(
     private serverUrl: string,
-    private callbackPort: number = 3333,
+    private callbackPort: number = 3334,
     private callbackPath: string = '/oauth/callback',
   ) {
     this.serverUrlHash = crypto.createHash('md5').update(serverUrl).digest('hex')
-    this.configDir = path.join(process.cwd(), '.mcp-cli')
+    this.configDir = path.join(os.homedir(), '.mcp-auth')
   }
 
   get redirectUrl(): string {
@@ -309,7 +310,7 @@ async function runProxy(serverUrl: string, callbackPort: number) {
 // Parse command-line arguments
 const args = process.argv.slice(2)
 const serverUrl = args[0]
-const callbackPort = args[1] ? parseInt(args[1]) : 3333
+const callbackPort = args[1] ? parseInt(args[1]) : 3334
 
 if (!serverUrl || !serverUrl.startsWith('https://')) {
   console.error('Usage: npx tsx sse-auth-proxy.ts <https://server-url> [callback-port]')
