@@ -2,13 +2,21 @@
   "name": "mcp-remote",
   "version": "0.0.1",
   "type": "module",
-  "devDependencies": {
+  "bin": "dist/proxy.js",
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",
+    "express": "^4.21.2",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.10",
-    "express": "^4.21.2",
-    "open": "^10.1.0",
     "prettier": "^3.5.3",
-    "tsx": "^4.19.3"
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
   }
 }
