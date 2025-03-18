@@ -62,22 +62,29 @@ const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
 app.get('/login', async (c) => {
     const script = `
         <script type="module">
-            import {StytchUIClient, Products, OTPMethods} from '@stytch/vanilla-js';
+            import {StytchUIClient, Products, OTPMethods, OAuthProviders} from '@stytch/vanilla-js';
             const client  = new StytchUIClient('${c.env.STYTCH_PUBLIC_TOKEN}');
             const handleOnLoginComplete = (evt) => {
                 if(evt.type !== "AUTHENTICATE_FLOW_COMPLETE") return;
-                const returnTo = new URLSearchParams(window.location.search).get('returnTo')
+                
+                const returnTo = localStorage.getItem('returnTo')
                 if (returnTo) {
+                    localStorage.setItem('returnTo', null);
                     window.location.href = returnTo
                 }
             }
             client.mountLogin({
                 elementId: '#entrypoint',
                 config: {
-                    products: [Products.otp],
+                    products: [Products.otp, Products.oauth],
                     otpOptions: {
                        methods: [OTPMethods.Email],
                     },
+                    oauthOptions: {
+                        providers: [{ type: OAuthProviders.Google }],
+                        loginRedirectURL: window.location.origin + '/authenticate',
+                        signupRedirectURL: window.location.origin + '/authenticate',
+                    }
                 },
                 callbacks: {onEvent: handleOnLoginComplete,}
             })
@@ -102,9 +109,8 @@ app.get('/authorize', async (c) => {
             const client  = new StytchUIClient('${c.env.STYTCH_PUBLIC_TOKEN}');
             if (client.user.getSync() === null) {
                 console.log('Not logged in, redirecting to login');
-                const params = new URLSearchParams()
-                params.set('returnTo', window.location.href);
-                window.location.href = '/login?' + params.toString();
+                localStorage.setItem('returnTo', window.location.href);
+                window.location.href = '/login';
             } else {
                 // HACK! MCP does not send a "scope" param, but Stytch expects one
                 // TODO @Max: Fix this on the Stytch side of things
@@ -117,6 +123,30 @@ app.get('/authorize', async (c) => {
             }
         </script>
   `
+    return c.html(layout('MCP Remote Auth Demo - Authorization', script))
+})
+
+app.get('/authenticate', async (c) => {
+    const script = `
+        <script type="module">
+            import {StytchUIClient} from '@stytch/vanilla-js';
+            const client = new StytchUIClient('${c.env.STYTCH_PUBLIC_TOKEN}');
+            const params = new URLSearchParams(window.location.search);
+            
+            client.oauth.authenticate(params.get('token'), {session_duration_minutes: 60 })
+                .then(() => {
+                    const returnTo = localStorage.getItem('returnTo')
+                    if (returnTo) {
+                        localStorage.setItem('returnTo', null);
+                        window.location.href = returnTo;
+                    }
+                })
+                .catch(err => {
+                    console.error(err)
+                    document.querySelector('#entrypoint').innerHTML = 'Error: <code>' + err.message + '</code>';        
+                });
+        </script>
+    `
     return c.html(layout('MCP Remote Auth Demo - Authorization', script))
 })
 

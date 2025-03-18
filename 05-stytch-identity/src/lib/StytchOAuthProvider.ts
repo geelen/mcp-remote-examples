@@ -437,16 +437,7 @@ class StytchOAuthProviderImpl {
    * @returns Response with token data or error
    */
   private async handleTokenRequest(request: Request, env: any): Promise<Response> {
-    // hack! MCP does not send this param, Stytch expects it
-    // TODO @max: Fix on stytch side
-    // Hardocode for now
-    const requestText = await request.text();
-    const params = new URLSearchParams(requestText);
-    params.append('redirect_uri', 'http://localhost:5173/oauth/callback');
-    const newRequestWithBody = new Request(request, { body: params.toString() });
-
-    const tokenReq = new Request(this.getStytchOAuthEndpointUrl(env, `oauth2/token`), newRequestWithBody)
-    console.log(tokenReq)
+    const tokenReq = new Request(this.getStytchOAuthEndpointUrl(env, `oauth2/token`), request)
     return fetch(tokenReq)
   }
 
@@ -457,58 +448,8 @@ class StytchOAuthProviderImpl {
    * @returns Response with client registration data or error
    */
   private async handleClientRegistration(request: Request, env: any): Promise<Response> {
-    // TODO: @max forward request to stytch API.
-    // For now, return static response to make MCP Inspector happy
-    let clientMetadata
-    try {
-      const text = await request.text()
-      if (text.length > 1048576) {
-        // Double-check text length
-        return createErrorResponse('invalid_request', 'Request payload too large, must be under 1 MiB', 413)
-      }
-      clientMetadata = JSON.parse(text)
-    } catch (error) {
-      return createErrorResponse('invalid_request', 'Invalid JSON payload', 400)
-    }
-
-    const clientInfo = {
-      // HACK: Hardcoded client ID for all clients to satisfy DCR
-      // TODO @max: discuss options for DCR support
-      clientId: env.STYTCH_CONN_APP_CLIENT_ID,
-      redirectUris: clientMetadata.redirect_uris,
-      clientName: clientMetadata.client_name,
-      logoUri: clientMetadata.logo_uri,
-      clientUri: clientMetadata.client_uri,
-      policyUri: clientMetadata.policy_uri,
-      tosUri: clientMetadata.tos_uri,
-      jwksUri: clientMetadata.jwks_uri,
-      contacts: clientMetadata.contacts,
-      grantTypes: clientMetadata.grant_types || ['authorization_code', 'refresh_token'],
-      responseTypes: clientMetadata.response_types || ['code'],
-      registrationDate: Math.floor(Date.now() / 1000),
-      tokenEndpointAuthMethod: 'none',
-    }
-
-    const response: Record<string, any> = {
-      client_id: clientInfo.clientId,
-      redirect_uris: clientInfo.redirectUris,
-      client_name: clientInfo.clientName,
-      logo_uri: clientInfo.logoUri,
-      client_uri: clientInfo.clientUri,
-      policy_uri: clientInfo.policyUri,
-      tos_uri: clientInfo.tosUri,
-      jwks_uri: clientInfo.jwksUri,
-      contacts: clientInfo.contacts,
-      grant_types: clientInfo.grantTypes,
-      response_types: clientInfo.responseTypes,
-      token_endpoint_auth_method: clientInfo.tokenEndpointAuthMethod,
-      client_id_issued_at: clientInfo.registrationDate,
-    }
-
-    return new Response(JSON.stringify(response), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const tokenReq = new Request(this.getStytchOAuthEndpointUrl(env, `oauth2/register`), request)
+    return fetch(tokenReq)
   }
 
   /**

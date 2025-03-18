@@ -3,6 +3,5 @@
 interface Env {
 	STYTCH_PROJECT_ID: "project-test-3e71d0a1-1e3e-4ee2-9be0-d7c0900f02c2";
 	STYTCH_PUBLIC_TOKEN: "public-token-test-71774374-3f6a-404a-8923-d4a830086812";
-	STYTCH_CONN_APP_CLIENT_ID: "connected-app-test-5d67795d-df2c-4ef5-8470-f18e77c92f25";
 	MCP_OBJECT: DurableObjectNamespace<import("./src/index").MyMCP>;
 }
