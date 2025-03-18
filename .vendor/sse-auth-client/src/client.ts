@@ -86,18 +86,6 @@ async function runClient(serverUrl: string, callbackPort: number) {
     console.log('Connecting to server...')
     await client.connect(transport)
     console.log('Connected successfully!')
-
-    // Request tools list
-    console.log('Requesting tools list...')
-    const tools = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
-    console.log('Tools:', JSON.stringify(tools, null, 2))
-
-    // Request resources list
-    console.log('Requesting resource list...')
-    const resources = await client.request({ method: 'resources/list' }, ListResourcesResultSchema)
-    console.log('Resources:', JSON.stringify(resources, null, 2))
-
-    console.log('Listening for messages. Press Ctrl+C to exit.')
   } catch (error) {
     if (error instanceof UnauthorizedError || (error instanceof Error && error.message.includes('Unauthorized'))) {
       console.log('Authentication required. Waiting for authorization...')
@@ -137,6 +125,26 @@ async function runClient(serverUrl: string, callbackPort: number) {
       process.exit(1)
     }
   }
+
+  try {
+    // Request tools list
+    console.log('Requesting tools list...')
+    const tools = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
+    console.log('Tools:', JSON.stringify(tools, null, 2))
+  } catch (e) {
+    console.log('Error requesting tools list:', e)
+  }
+
+  try {
+    // Request resources list
+    console.log('Requesting resource list...')
+    const resources = await client.request({ method: 'resources/list' }, ListResourcesResultSchema)
+    console.log('Resources:', JSON.stringify(resources, null, 2))
+  } catch (e) {
+    console.log('Error requesting resources list:', e)
+  }
+
+  console.log('Listening for messages. Press Ctrl+C to exit.')
 }
 
 // Parse command-line arguments and run the client
