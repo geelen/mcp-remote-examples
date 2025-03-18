@@ -419,7 +419,7 @@ export async function parseCommandLineArgs(args: string[], defaultPort: number, 
   const serverUrl = args[0]
   const specifiedPort = args[1] ? parseInt(args[1]) : undefined
 
-  if (!serverUrl || !serverUrl.startsWith('https://')) {
+  if (!serverUrl || !(serverUrl.startsWith('https://') || serverUrl.startsWith('http://localhost'))) {
     console.error(usage)
     process.exit(1)
   }
