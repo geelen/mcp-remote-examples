@@ -10,7 +10,15 @@ export abstract class MCPEntrypoint<T extends Record<string, any> = Record<strin
 
   static Router = class extends WorkerEntrypoint<{ MCP_OBJECT: DurableObjectNamespace<MCPEntrypoint> }> {
     async fetch(request: Request) {
-      const object = this.env.MCP_OBJECT.get(this.env.MCP_OBJECT.idFromName(this.ctx.props.name))
+      console.log({ request: request.url, method: request.method, headers: Object.fromEntries(request.headers.entries()) })
+      const url = new URL(request.url)
+      const sessionId = url.searchParams.get('sessionId')
+
+      if (!sessionId && url.pathname !== '/sse') {
+        return new Response('Missing sessionId. Expected POST to /sse to initiate new one', { status: 400 })
+      }
+      const id = sessionId ? this.env.MCP_OBJECT.idFromString(sessionId) : this.env.MCP_OBJECT.newUniqueId()
+      const object = this.env.MCP_OBJECT.get(id)
       object.init(this.ctx.props)
       return object.fetch(request)
     }

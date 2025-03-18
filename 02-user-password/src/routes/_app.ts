@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { OAuthHelpers } from '../lib/OAuthProvider'
+import { OAuthHelpers } from 'workers-oauth-provider'
 
 export type Bindings = Env & {
   OAUTH_PROVIDER: OAuthHelpers

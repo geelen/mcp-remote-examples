@@ -5,11 +5,6 @@ import app from './_app'
 
 app.get('/authorize', async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw)
-  const randomString = crypto.randomUUID()
-  console.log({ oauthReqInfo, randomString })
-  let value = JSON.stringify(oauthReqInfo)
-  console.log({ value })
-  await c.env.OAUTH_KV.put(`login:${randomString}`, value, { expirationTtl: 600 })
 
   const isLoggedIn = c.get('isLoggedIn')
 
@@ -41,7 +36,7 @@ app.get('/authorize', async (c) => {
       </div>
 
       <form action="/approve" method="POST" class="space-y-4">
-        <input type="hidden" name="randomString" value="${randomString}" />
+        <input type="hidden" name="oauthReqInfo" value="${JSON.stringify(oauthReqInfo)}" />
         ${isLoggedIn
           ? html`
               <input type="hidden" name="email" value="user@example.com" />

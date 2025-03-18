@@ -20,6 +20,9 @@ importers:
       marked:
         specifier: ^15.0.7
         version: 15.0.7
+      mcp-entrypoint:
+        specifier: link:../.vendor/mcp-entrypoint
+        version: link:../.vendor/mcp-entrypoint
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
