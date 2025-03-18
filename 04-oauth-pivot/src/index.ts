@@ -1,11 +1,11 @@
 import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-oauth-provider'
-import { MCPEntrypoint } from 'mcp-entrypoint'
+import { DurableMCP } from 'mcp-entrypoint'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'
-import pick from 'just-pick'
 import { Octokit } from 'octokit'
 import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from './utils'
+import pick from 'just-pick'
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the MCP Server as this.props
@@ -16,33 +16,32 @@ type Props = {
   accessToken: string
 }
 
-export class MyMCP extends MCPEntrypoint<Props> {
-  get server() {
-    const server = new McpServer({
-      name: 'Github OAuth Proxy Demo',
-      version: '1.0.0',
-    })
+export class MyMCP extends DurableMCP {
+  server = new McpServer({
+    name: 'Github OAuth Proxy Demo',
+    version: '1.0.0',
+  })
 
-    server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
+  async init() {
+    this.server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
       content: [{ type: 'text', text: String(a + b) }],
     }))
 
-    server.tool('whoami', 'Tasty props from my OAuth provider', {}, async () => ({
+    this.server.tool('whoami', 'Tasty props from my OAuth provider', {}, async () => ({
       content: [{ type: 'text', text: JSON.stringify(pick(this.props, 'login', 'name', 'email')) }],
     }))
 
-    server.tool('userInfoHTTP', 'Get user info from GitHub, via HTTP', {}, async () => {
+    this.server.tool('userInfoHTTP', 'Get user info from GitHub, via HTTP', {}, async () => {
       const res = await fetch('https://api.github.com/user', {
         headers: { Authorization: `Bearer ${this.props.accessToken}`, 'User-Agent': '04-auth-pivot' },
       })
       return { content: [{ type: 'text', text: await res.text() }] }
     })
 
-    server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
+    this.server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
       const octokit = new Octokit({ auth: this.props.accessToken })
       return { content: [{ type: 'text', text: JSON.stringify(await octokit.rest.users.getAuthenticated()) }] }
     })
-    return server
   }
 }
 
@@ -125,7 +124,7 @@ app.get('/callback', async (c) => {
 
 export default new OAuthProvider({
   apiRoute: '/sse',
-  apiHandler: MyMCP.Router,
+  apiHandler: MyMCP.mount('/sse'),
   defaultHandler: app,
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
