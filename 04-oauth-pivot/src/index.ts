@@ -16,7 +16,7 @@ type Props = {
   accessToken: string
 }
 
-export class MyMCP extends DurableMCP {
+export class MyMCP extends DurableMCP<Props, Env> {
   server = new McpServer({
     name: 'Github OAuth Proxy Demo',
     version: '1.0.0',

@@ -6,7 +6,8 @@ import { cors } from 'hono/cors'
 
 export abstract class DurableMCP<
   T extends Record<string, any> = Record<string, any>,
-> extends DurableObject {
+  Env = unknown
+> extends DurableObject<Env> {
   abstract server: McpServer
   private transport!: SSEEdgeTransport
   props!: T
