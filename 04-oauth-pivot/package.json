@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8788",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types"
   },
@@ -17,6 +17,7 @@
     "prettier": "^3.5.3",
     "typescript": "^5.5.2",
     "workers-oauth-provider": "link:../.vendor/workers-oauth-provider",
+    "mcp-entrypoint": "link:../.vendor/mcp-entrypoint",
     "wrangler": "^3.112.0",
     "zod": "^3.24.2"
   }

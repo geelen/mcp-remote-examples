@@ -1,5 +1,5 @@
 import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-oauth-provider'
-import { MCPEntrypoint } from './lib/MCPEntrypoint'
+import { MCPEntrypoint } from 'mcp-entrypoint'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'
