@@ -112,11 +112,6 @@ app.get('/authorize', async (c) => {
                 localStorage.setItem('returnTo', window.location.href);
                 window.location.href = '/login';
             } else {
-                // HACK! MCP does not send a "scope" param, but Stytch expects one
-                // TODO @Max: Fix this on the Stytch side of things
-                const url = new URL(window.location.href);
-                url.searchParams.set('scope', 'openid email profile');
-                window.history.pushState(null, '', url.toString());
                 client.mountIdentityProvider({
                     elementId: '#entrypoint'
                 })    

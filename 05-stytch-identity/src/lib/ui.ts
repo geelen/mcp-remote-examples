@@ -12,8 +12,7 @@ export const layout = (title: string, script: string) => html`
       <script type="importmap">
         {
           "imports": {
-            "@stytch/vanilla-js": "https://unpkg.com/@stytch/vanilla-js@5.18.3/dist/index.esm.js",
-            "circle": "https://example.com/shapes/circle.js"
+            "@stytch/vanilla-js": "https://unpkg.com/@stytch/vanilla-js@5.18.6/dist/index.esm.js"
           }
         }
       </script>
