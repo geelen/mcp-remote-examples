@@ -1,10 +1,10 @@
 {
-  "name": "02-user-password",
-  "version": "0.0.0",
+  "name": "04-oauth-pivot",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev --port 8788",
+    "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types"
   },

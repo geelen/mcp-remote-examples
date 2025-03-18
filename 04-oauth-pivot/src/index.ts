@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { Hono } from 'hono'
 import pick from 'just-pick'
 import { Octokit } from 'octokit'
+import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from './utils'
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the MCP Server as this.props
@@ -62,14 +63,15 @@ app.get('/authorize', async (c) => {
     return c.text('Invalid request', 400)
   }
 
-  const upstream = new URL(`https://github.com/login/oauth/authorize`)
-  upstream.searchParams.set('client_id', c.env.GITHUB_CLIENT_ID)
-  upstream.searchParams.set('redirect_uri', new URL('/callback', c.req.url).href)
-  upstream.searchParams.set('scope', 'read:user')
-  upstream.searchParams.set('state', btoa(JSON.stringify(oauthReqInfo)))
-  upstream.searchParams.set('response_type', 'code')
-
-  return Response.redirect(upstream.href)
+  return Response.redirect(
+    getUpstreamAuthorizeUrl({
+      upstream_url: `https://github.com/login/oauth/authorize`,
+      scope: 'read:user',
+      client_id: c.env.GITHUB_CLIENT_ID,
+      redirect_uri: new URL('/callback', c.req.url).href,
+      state: btoa(JSON.stringify(oauthReqInfo)),
+    }),
+  )
 })
 
 /**
@@ -81,8 +83,6 @@ app.get('/authorize', async (c) => {
  * down to the client. It ends by redirecting the client back to _its_ callback URL
  */
 app.get('/callback', async (c) => {
-  const code = c.req.query('code') as string
-
   // Get the oathReqInfo out of KV
   const oauthReqInfo = JSON.parse(atob(c.req.query('state') as string)) as AuthRequest
   if (!oauthReqInfo.clientId) {
@@ -90,41 +90,17 @@ app.get('/callback', async (c) => {
   }
 
   // Exchange the code for an access token
-  const resp = await fetch(`https://github.com/login/oauth/access_token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: c.env.GITHUB_CLIENT_ID,
-      client_secret: c.env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri: new URL('/callback', c.req.url).href,
-    }).toString(),
+  const [accessToken, errResponse] = await fetchUpstreamAuthToken({
+    upstream_url: `https://github.com/login/oauth/access_token`,
+    client_id: c.env.GITHUB_CLIENT_ID,
+    client_secret: c.env.GITHUB_CLIENT_SECRET,
+    code: c.req.query('code'),
+    redirect_uri: new URL('/callback', c.req.url).href,
   })
-  if (!resp.ok) {
-    console.log(await resp.text())
-    return c.text('Failed to fetch access token', 500)
-  }
-  const body = await resp.formData()
-  const accessToken = body.get('access_token')
-  if (!accessToken) {
-    return c.text('Missing access token', 400)
-  }
+  if (errResponse) return errResponse
 
   // Fetch the user info from GitHub
-  const apiRes = await fetch(`https://api.github.com/user`, {
-    headers: {
-      Authorization: `bearer ${accessToken}`,
-      'User-Agent': '04-auth-pivot',
-    },
-  })
-  if (!apiRes.ok) {
-    console.log(await apiRes.text())
-    return c.text('Failed to fetch user', 500)
-  }
-
-  const user = (await apiRes.json()) as Record<string, string>
+  const user = await new Octokit({ auth: accessToken }).rest.users.getAuthenticated()
   const { login, name, email } = user
 
   // Return back to the MCP client a new token
