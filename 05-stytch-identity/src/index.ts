@@ -41,7 +41,7 @@ export class MyMCP extends MCPEntrypoint<Props> {
         }))
 
         server.tool('userInfoHTTP', 'Get user info from Stytch, via HTTP', {}, async () => {
-            const projectID = 'project-test-3e71d0a1-1e3e-4ee2-9be0-d7c0900f02c2';
+            const projectID = this.env.STYTCH_PROJECT_ID;
             const res = await fetch(`https://test.stytch.com/v1/public/${projectID}/oauth2/userinfo`, {
                 headers: {Authorization: `Bearer ${this.props.accessToken}`, 'User-Agent': '05-stytch-identity'},
             })
