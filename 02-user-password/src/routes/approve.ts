@@ -2,13 +2,17 @@
 import { html } from 'hono/html'
 import { layout } from '../utils'
 import app from './_app'
-import { AuthRequest } from '../lib/OAuthProvider'
+import { AuthRequest } from 'workers-oauth-provider'
 
 app.post('/approve', async (c) => {
   const body = await c.req.parseBody()
   const action = body.action as string
-  const randomString = body.randomString as string
+  const oauthReqInfo = JSON.parse(body.oauthReqInfo as string) as AuthRequest
   const email = body.email as string
+
+  if (!oauthReqInfo) {
+    return c.html('INVALID LOGIN')
+  }
 
   console.log('Approval route called:', {
     action,
@@ -23,12 +27,6 @@ app.post('/approve', async (c) => {
   if (action === 'approve' || action === 'login_approve') {
     message = 'Authorization approved!'
     status = 'success'
-
-    const oauthReqInfo = await c.env.OAUTH_KV.get<AuthRequest>(`login:${randomString}`, { type: 'json' })
-    console.log({ oauthReqInfo2: oauthReqInfo })
-    if (!oauthReqInfo) {
-      return c.html('INVALID LOGIN')
-    }
 
     const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
       request: oauthReqInfo,
