@@ -1,13 +1,14 @@
 import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-oauth-provider'
-import { MCPEntrypoint } from './lib/MCPEntrypoint'
+import { DurableMCP } from 'mcp-entrypoint'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'
-import pick from 'just-pick'
 import { Octokit } from 'octokit'
+import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from './utils'
+import pick from 'just-pick'
 
 // Context from the auth process, encrypted & stored in the auth token
-// and provided to the MCP Server as this.props
+// and provided to the DurableMCP as this.props
 type Props = {
   login: string
   name: string
@@ -15,33 +16,50 @@ type Props = {
   accessToken: string
 }
 
-export class MyMCP extends MCPEntrypoint<Props> {
-  get server() {
-    const server = new McpServer({
-      name: 'Github OAuth Proxy Demo',
-      version: '1.0.0',
-    })
+export class MyMCP extends DurableMCP<Props, Env> {
+  server = new McpServer({
+    name: 'Github OAuth Proxy Demo',
+    version: '1.0.0',
+  })
 
-    server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
+  async init() {
+    // Hello, world!
+    this.server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
       content: [{ type: 'text', text: String(a + b) }],
     }))
 
-    server.tool('whoami', 'Tasty props from my OAuth provider', {}, async () => ({
-      content: [{ type: 'text', text: JSON.stringify(pick(this.props, 'login', 'name', 'email')) }],
-    }))
-
-    server.tool('userInfoHTTP', 'Get user info from GitHub, via HTTP', {}, async () => {
-      const res = await fetch('https://api.github.com/user', {
-        headers: { Authorization: `Bearer ${this.props.accessToken}`, 'User-Agent': '04-auth-pivot' },
-      })
-      return { content: [{ type: 'text', text: await res.text() }] }
-    })
-
-    server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
+    // Use the upstream access token to facilitate tools
+    this.server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
       const octokit = new Octokit({ auth: this.props.accessToken })
       return { content: [{ type: 'text', text: JSON.stringify(await octokit.rest.users.getAuthenticated()) }] }
     })
-    return server
+
+    // Dynamically add tools based on the user's login. In this case, I want to limit
+    // access to my Image Generation tool to just me
+    if (this.props.login === 'geelen') {
+      this.server.tool(
+        'generateImage',
+        'Generate an image using the `flux-1-schnell` model. Works best with 8 steps.',
+        {
+          prompt: z.string().describe(`A text description of the image you want to generate.`),
+          steps: z
+            .number()
+            .min(4)
+            .max(8)
+            .default(4)
+            .describe(
+              `The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.`,
+            ),
+        },
+        async ({ prompt, steps }) => {
+          const response = await this.env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt, steps })
+
+          return {
+            content: [{ type: 'image', data: response.image!, mimeType: 'image/jpeg' }],
+          }
+        },
+      )
+    }
   }
 }
 
@@ -58,18 +76,19 @@ const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
  */
 app.get('/authorize', async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw)
-  // Store the request info in KV to catch ya up on the rebound
-  const randomString = crypto.randomUUID()
-  await c.env.OAUTH_KV.put(`login:${randomString}`, JSON.stringify(oauthReqInfo), { expirationTtl: 600 })
+  if (!oauthReqInfo.clientId) {
+    return c.text('Invalid request', 400)
+  }
 
-  const upstream = new URL(`https://github.com/login/oauth/authorize`)
-  upstream.searchParams.set('client_id', c.env.GITHUB_CLIENT_ID)
-  upstream.searchParams.set('redirect_uri', new URL('/callback', c.req.url).href)
-  upstream.searchParams.set('scope', 'read:user')
-  upstream.searchParams.set('state', randomString)
-  upstream.searchParams.set('response_type', 'code')
-
-  return Response.redirect(upstream.href)
+  return Response.redirect(
+    getUpstreamAuthorizeUrl({
+      upstream_url: `https://github.com/login/oauth/authorize`,
+      scope: 'read:user',
+      client_id: c.env.GITHUB_CLIENT_ID,
+      redirect_uri: new URL('/callback', c.req.url).href,
+      state: btoa(JSON.stringify(oauthReqInfo)),
+    }),
+  )
 })
 
 /**
@@ -81,55 +100,26 @@ app.get('/authorize', async (c) => {
  * down to the client. It ends by redirecting the client back to _its_ callback URL
  */
 app.get('/callback', async (c) => {
-  const code = c.req.query('code') as string
-
   // Get the oathReqInfo out of KV
-  const randomString = c.req.query('state')
-  if (!randomString) {
-    return c.text('Missing state', 400)
-  }
-  const oauthReqInfo = await c.env.OAUTH_KV.get<AuthRequest>(`login:${randomString}`, { type: 'json' })
-  if (!oauthReqInfo) {
+  const oauthReqInfo = JSON.parse(atob(c.req.query('state') as string)) as AuthRequest
+  if (!oauthReqInfo.clientId) {
     return c.text('Invalid state', 400)
   }
 
   // Exchange the code for an access token
-  const resp = await fetch(`https://github.com/login/oauth/access_token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: c.env.GITHUB_CLIENT_ID,
-      client_secret: c.env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri: new URL('/callback', c.req.url).href,
-    }).toString(),
+  const [accessToken, errResponse] = await fetchUpstreamAuthToken({
+    upstream_url: `https://github.com/login/oauth/access_token`,
+    client_id: c.env.GITHUB_CLIENT_ID,
+    client_secret: c.env.GITHUB_CLIENT_SECRET,
+    code: c.req.query('code'),
+    redirect_uri: new URL('/callback', c.req.url).href,
   })
-  if (!resp.ok) {
-    console.log(await resp.text())
-    return c.text('Failed to fetch access token', 500)
-  }
-  const body = await resp.formData()
-  const accessToken = body.get('access_token')
-  if (!accessToken) {
-    return c.text('Missing access token', 400)
-  }
+  if (errResponse) return errResponse
 
   // Fetch the user info from GitHub
-  const apiRes = await fetch(`https://api.github.com/user`, {
-    headers: {
-      Authorization: `bearer ${accessToken}`,
-      'User-Agent': '04-auth-pivot',
-    },
-  })
-  if (!apiRes.ok) {
-    console.log(await apiRes.text())
-    return c.text('Failed to fetch user', 500)
-  }
-
-  const user = (await apiRes.json()) as Record<string, string>
-  const { login, name, email } = user
+  const user = await new Octokit({ auth: accessToken }).rest.users.getAuthenticated()
+  const { login, name, email } = user.data
+  console.log({ login, name, email })
 
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
@@ -153,7 +143,7 @@ app.get('/callback', async (c) => {
 
 export default new OAuthProvider({
   apiRoute: '/sse',
-  apiHandler: MyMCP.Router,
+  apiHandler: MyMCP.mount('/sse'),
   defaultHandler: app,
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
