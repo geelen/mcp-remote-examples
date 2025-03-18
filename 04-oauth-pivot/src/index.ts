@@ -34,7 +34,6 @@ export class MyMCP extends DurableMCP<Props, Env> {
       return { content: [{ type: 'text', text: JSON.stringify(await octokit.rest.users.getAuthenticated()) }] }
     })
 
-    console.log(this.props)
     // Dynamically add tools based on the user's login. In this case, I want to limit
     // access to my Image Generation tool to just me
     if (this.props.login === 'geelen') {
