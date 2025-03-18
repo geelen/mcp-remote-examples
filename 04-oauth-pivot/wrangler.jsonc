@@ -27,6 +27,9 @@
       "id": "894847b7e05f425da2636d71c524f9fc"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "observability": {
     "enabled": true
   },

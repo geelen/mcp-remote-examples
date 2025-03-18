@@ -8,7 +8,7 @@ import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from './utils'
 import pick from 'just-pick'
 
 // Context from the auth process, encrypted & stored in the auth token
-// and provided to the MCP Server as this.props
+// and provided to the DurableMCP as this.props
 type Props = {
   login: string
   name: string
@@ -23,25 +23,44 @@ export class MyMCP extends DurableMCP<Props, Env> {
   })
 
   async init() {
+    // Hello, world!
     this.server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
       content: [{ type: 'text', text: String(a + b) }],
     }))
 
-    this.server.tool('whoami', 'Tasty props from my OAuth provider', {}, async () => ({
-      content: [{ type: 'text', text: JSON.stringify(pick(this.props, 'login', 'name', 'email')) }],
-    }))
-
-    this.server.tool('userInfoHTTP', 'Get user info from GitHub, via HTTP', {}, async () => {
-      const res = await fetch('https://api.github.com/user', {
-        headers: { Authorization: `Bearer ${this.props.accessToken}`, 'User-Agent': '04-auth-pivot' },
-      })
-      return { content: [{ type: 'text', text: await res.text() }] }
-    })
-
+    // Use the upstream access token to facilitate tools
     this.server.tool('userInfoOctokit', 'Get user info from GitHub, via Octokit', {}, async () => {
       const octokit = new Octokit({ auth: this.props.accessToken })
       return { content: [{ type: 'text', text: JSON.stringify(await octokit.rest.users.getAuthenticated()) }] }
     })
+
+    console.log(this.props)
+    // Dynamically add tools based on the user's login. In this case, I want to limit
+    // access to my Image Generation tool to just me
+    if (this.props.login === 'geelen') {
+      this.server.tool(
+        'generateImage',
+        'Generate an image using the `flux-1-schnell` model. Works best with 8 steps.',
+        {
+          prompt: z.string().describe(`A text description of the image you want to generate.`),
+          steps: z
+            .number()
+            .min(4)
+            .max(8)
+            .default(4)
+            .describe(
+              `The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.`,
+            ),
+        },
+        async ({ prompt, steps }) => {
+          const response = await this.env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt, steps })
+
+          return {
+            content: [{ type: 'image', data: response.image!, mimeType: 'image/jpeg' }],
+          }
+        },
+      )
+    }
   }
 }
 
@@ -100,7 +119,8 @@ app.get('/callback', async (c) => {
 
   // Fetch the user info from GitHub
   const user = await new Octokit({ auth: accessToken }).rest.users.getAuthenticated()
-  const { login, name, email } = user
+  const { login, name, email } = user.data
+  console.log({ login, name, email })
 
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({

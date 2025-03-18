@@ -53,6 +53,7 @@ export abstract class DurableMCP<
     router.get(path, cors(corsOptions), async (c) => {
       const namespace = c.env[binding]
       const object = namespace.get(namespace.newUniqueId())
+      console.log({props:c.executionCtx.props})
       // @ts-ignore
       object._init(c.executionCtx.props)
       return await object.onSSE(c.req.raw) as unknown as Response
