@@ -58,15 +58,15 @@ const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
  */
 app.get('/authorize', async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw)
-  // Store the request info in KV to catch ya up on the rebound
-  const randomString = crypto.randomUUID()
-  await c.env.OAUTH_KV.put(`login:${randomString}`, JSON.stringify(oauthReqInfo), { expirationTtl: 600 })
+  if (!oauthReqInfo.clientId) {
+    return c.text('Invalid request', 400)
+  }
 
   const upstream = new URL(`https://github.com/login/oauth/authorize`)
   upstream.searchParams.set('client_id', c.env.GITHUB_CLIENT_ID)
   upstream.searchParams.set('redirect_uri', new URL('/callback', c.req.url).href)
   upstream.searchParams.set('scope', 'read:user')
-  upstream.searchParams.set('state', randomString)
+  upstream.searchParams.set('state', btoa(JSON.stringify(oauthReqInfo)))
   upstream.searchParams.set('response_type', 'code')
 
   return Response.redirect(upstream.href)
@@ -84,12 +84,8 @@ app.get('/callback', async (c) => {
   const code = c.req.query('code') as string
 
   // Get the oathReqInfo out of KV
-  const randomString = c.req.query('state')
-  if (!randomString) {
-    return c.text('Missing state', 400)
-  }
-  const oauthReqInfo = await c.env.OAUTH_KV.get<AuthRequest>(`login:${randomString}`, { type: 'json' })
-  if (!oauthReqInfo) {
+  const oauthReqInfo = JSON.parse(atob(c.req.query('state') as string)) as AuthRequest
+  if (!oauthReqInfo.clientId) {
     return c.text('Invalid state', 400)
   }
 
