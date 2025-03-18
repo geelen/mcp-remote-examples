@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Math MCP Client</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+  </head>
+
+  <body>
+    <h1>Websocket Math MCP Client Example</h1>
+    <div class="card info-card">
+      <h2>About</h2>
+      <div class="info-content">
+        <h3>What is this?</h3>
+        <p>
+          This demo shows the Model Context Protocol (MCP) in action - a
+          standardized way for clients (AI agents) to discover and use tools
+          exposed by an MCP server (in this case, we're doing math).
+        </p>
+
+        <h3>How it works</h3>
+        <ul>
+          <li>
+            <strong>WebSocket Connection</strong>: We establish a WebSocket
+            connection for two-way communication, letting the server push
+            updates when needed.
+          </li>
+          <li>
+            <strong>Tool Discovery</strong>: The client asks what tools are
+            available (click "Discover Tools" to see the full list).
+          </li>
+          <li>
+            <strong>Running Operations</strong>: Send requests to run operations
+            like <code>{ method: "add", params: { a: 5, b: 3 } }</code> and get
+            results back.
+          </li>
+        </ul>
+
+        <h3>Technology</h3>
+        <ul>
+          <li>
+            <strong>Cloudflare Workers</strong>: Powers both the client and
+            server components
+          </li>
+          <li>
+            <strong>Durable Objects</strong>: Maintains persistent connections
+            and session state
+          </li>
+          <li>
+            <strong>WebSockets</strong>: Enables real-time communication between
+            client and server
+          </li>
+          <li>
+            <strong>MCP Protocol</strong>: Handles standardized message exchange
+            and tool discovery
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Connection</h2>
+      <div class="input-group">
+        <label for="mcp-url">MCP Server URL:</label>
+        <input type="text" id="mcp-url" value="" style="width: 100%" />
+      </div>
+      <div class="connection-status">
+        <span
+          class="status-indicator disconnected"
+          id="status-indicator"
+        ></span>
+        <span id="connection-status">Disconnected</span>
+      </div>
+      <button id="connect-btn">Connect</button>
+    </div>
+
+    <div class="card">
+      <h2>Tool Discovery</h2>
+      <button id="discover-btn" disabled>Discover Tools</button>
+      <pre id="tools-result">No tools discovered yet</pre>
+    </div>
+
+    <div class="card">
+      <h2>Basic Math</h2>
+      <div class="input-group">
+        <label for="operation">Operation:</label>
+        <select id="operation">
+          <option value="add">Addition</option>
+          <option value="subtract">Subtraction</option>
+          <option value="multiply">Multiplication</option>
+          <option value="divide">Division</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="num1">First Number:</label>
+        <input type="number" id="num1" value="5" />
+      </div>
+      <div class="input-group">
+        <label for="num2">Second Number:</label>
+        <input type="number" id="num2" value="3" />
+      </div>
+      <button id="calculate-basic" disabled>Calculate</button>
+      <div class="result" id="basic-result">Result will appear here</div>
+    </div>
+
+    <div class="card">
+      <h2>Advanced Math</h2>
+      <div class="input-group">
+        <label for="adv-operation">Operation:</label>
+        <select id="adv-operation">
+          <option value="power">Power</option>
+          <option value="sqrt">Square Root</option>
+          <option value="sin">Sine</option>
+          <option value="cos">Cosine</option>
+          <option value="tan">Tangent</option>
+          <option value="log">Logarithm</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="value">Value:</label>
+        <input type="number" id="value" value="16" />
+      </div>
+      <div class="input-group" id="exponent-group">
+        <label for="exponent">Exponent/Base:</label>
+        <input type="number" id="exponent" value="2" />
+      </div>
+      <button id="calculate-adv" disabled>Calculate</button>
+      <div class="result" id="adv-result">Result will appear here</div>
+    </div>
+
+    <div class="card">
+      <h2>Connection Log</h2>
+      <div id="ws-log" class="log-container"></div>
+    </div>
+
+    <div class="footer">
+      <p>Powered by Model Context Protocol | Built on Cloudflare</p>
+    </div>
+
+    <script type="module" src="/src/client/main.tsx"></script>
+  </body>
+</html>
