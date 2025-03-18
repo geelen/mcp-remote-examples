@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { Hono } from 'hono'
 import { Octokit } from 'octokit'
 import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from './utils'
-import pick from 'just-pick'
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -119,7 +118,6 @@ app.get('/callback', async (c) => {
   // Fetch the user info from GitHub
   const user = await new Octokit({ auth: accessToken }).rest.users.getAuthenticated()
   const { login, name, email } = user.data
-  console.log({ login, name, email })
 
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
