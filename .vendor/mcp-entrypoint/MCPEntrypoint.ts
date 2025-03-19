@@ -59,7 +59,7 @@ export abstract class DurableMCP<
       return await object.onSSE(c.req.raw) as unknown as Response
     })
 
-    router.post(path + '/message', cors(corsOptions), async (c) => {
+    router.post('/sse/message', cors(corsOptions), async (c) => {
       const namespace = c.env[binding]
       const sessionId = c.req.query('sessionId')
       if (!sessionId) {
