@@ -1,5 +1,5 @@
-import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-oauth-provider'
-import { DurableMCP } from 'mcp-entrypoint'
+import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-mcp/vendor/workers-oauth-provider/oauth-provider.js'
+import { DurableMCP } from 'workers-mcp'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'

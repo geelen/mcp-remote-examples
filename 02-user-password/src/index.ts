@@ -1,6 +1,6 @@
 import app from './routes'
-import OAuthProvider from 'workers-oauth-provider'
-import { DurableMCP } from 'mcp-entrypoint'
+import OAuthProvider from 'workers-mcp/vendor/workers-oauth-provider/oauth-provider.js'
+import { DurableMCP } from 'workers-mcp'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
