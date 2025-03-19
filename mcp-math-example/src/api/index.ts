@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { DurableMCP } from "mcp-entrypoint";
+import { DurableMCP } from "workers-mcp";
 import { z } from "zod";
 
 export interface Env {
