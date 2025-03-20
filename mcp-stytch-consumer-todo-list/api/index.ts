@@ -14,11 +14,7 @@ app
             issuer: c.env.STYTCH_PROJECT_ID,
             authorization_endpoint: `${url.origin}/oauth/authorize`,
             token_endpoint: getStytchOAuthEndpointUrl(c.env, 'oauth2/token'),
-
-            // TODO: Looks like we have a CORS thing to fix with localhost?? Annoying.
-            registration_endpoint: `${url.origin}/api/oauth2/register`,
-            // registration_endpoint: getStytchOAuthEndpointUrl(c.env, 'oauth2/register'),
-
+            registration_endpoint: getStytchOAuthEndpointUrl(c.env, 'oauth2/register'),
             scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
             response_types_supported: ['code'],
             response_modes_supported: ['query'],
@@ -26,16 +22,6 @@ app
             token_endpoint_auth_methods_supported: ['none'],
             code_challenge_methods_supported: ['S256'],
         })
-    })
-
-    // TODO: Looks like we have a CORS thing to fix with localhost?? Annoying.
-    .post('/api/oauth2/register', async (c) => {
-        // Forward request body for now...
-        const tokenReq = new Request(getStytchOAuthEndpointUrl(c.env, `oauth2/register`), {
-            method: 'POST',
-            body: await c.req.text(),
-        })
-        return fetch(tokenReq)
     })
 
 export default {
@@ -58,6 +44,7 @@ export default {
                 })
             }
 
+            // @ts-ignore
             const handler = new TodoMPC.Router(ctx, env)
             return handler.fetch(request)
         }
