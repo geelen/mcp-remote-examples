@@ -12,6 +12,7 @@ app
         const url = new URL(c.req.url);
         return c.json({
             issuer: c.env.STYTCH_PROJECT_ID,
+            // Link to the OAuth Authorization screen implemented within the React UI
             authorization_endpoint: `${url.origin}/oauth/authorize`,
             token_endpoint: getStytchOAuthEndpointUrl(c.env, 'oauth2/token'),
             registration_endpoint: getStytchOAuthEndpointUrl(c.env, 'oauth2/register'),
@@ -34,6 +35,7 @@ export default {
         }
 
         // SSE routes should be handled by the MCP server
+        // Only allow authenticated requests through
         if (url.pathname.startsWith("/sse")) {
             try {
                 ctx.props = await validateBearerToken(request, env);

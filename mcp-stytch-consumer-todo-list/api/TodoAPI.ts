@@ -4,7 +4,7 @@ import {stytchAuthMiddeware} from "./lib/auth";
 
 
 /**
- * app exposes the TODO Service via REST endpoints for consumption by the frontend
+ * The Hono app exposes the TODO Service via REST endpoints for consumption by the frontend
  */
 export const app = new Hono<{ Bindings: Env }>({strict: false})
 

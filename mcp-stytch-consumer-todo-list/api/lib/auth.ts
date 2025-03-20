@@ -5,6 +5,7 @@ import {getCookie} from "hono/cookie";
 
 /**
  * stytchAuthMiddleware is a Hono middleware that validates that the user is logged in
+ * It checks for the stytch_session_jwt cookie set by the Stytch FE SDK
  */
 export const stytchAuthMiddeware = createMiddleware<{
     Variables: {
@@ -27,6 +28,7 @@ export const stytchAuthMiddeware = createMiddleware<{
 
 /**
  * validateBearerToken checks that the request has a valid Stytch-issued bearer token
+ * Tokens are issued to clients at the end of a successful OAuth flow
  */
 export async function validateBearerToken(request: Request, env: Env) {
     const authHeader = request.headers.get('Authorization')

@@ -18,7 +18,6 @@ export abstract class MCPEntrypoint<T extends Record<string, any> = Record<strin
   private transport!: SSEEdgeTransport
 
   init(props: T) {
-    // console.log({ init: props })
     this.props = props
   }
 

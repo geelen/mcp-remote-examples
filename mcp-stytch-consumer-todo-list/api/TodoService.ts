@@ -18,8 +18,15 @@ class TodoService {
     }
 
     #set = async (todos: Todo[]): Promise<Todo[]> => {
-        await this.env.TODOS.put(this.userID, JSON.stringify(todos))
-        return todos
+        const sorted = todos.sort((t1, t2) => {
+            if (t1.completed === t2.completed) {
+                return t1.id.localeCompare(t2.id);
+            }
+            return t1.completed ? 1 : -1;
+        });
+
+        await this.env.TODOS.put(this.userID, JSON.stringify(sorted))
+        return sorted
     }
 
     add = async (todoText: string): Promise<Todo[]> => {
