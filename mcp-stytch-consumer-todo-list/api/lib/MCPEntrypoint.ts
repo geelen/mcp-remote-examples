@@ -28,7 +28,7 @@ export abstract class MCPEntrypoint<T extends Record<string, any> = Record<strin
     if (url.pathname === '/sse') {
       this.transport = new SSEEdgeTransport('/sse/message', this.ctx.id.toString())
       await this.server.connect(this.transport)
-      return addCorsHeaders(this.transport.sseResponse, request)
+      return addCorsHeaders(this.transport.sseResponse, request.headers.get('Origin') || '*')
     }
 
     if (url.pathname === '/sse/message') {

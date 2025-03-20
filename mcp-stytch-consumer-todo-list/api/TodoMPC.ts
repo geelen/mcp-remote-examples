@@ -1,4 +1,4 @@
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
+import {McpServer, ResourceTemplate} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {z} from 'zod'
 import {MCPEntrypoint} from "./lib/MCPEntrypoint.ts";
 import {todoService} from "./TodoService.ts";
@@ -19,23 +19,31 @@ export class TodoMPC extends MCPEntrypoint<AuthenticationContext> {
             version: '1.0.0',
         })
 
-        // TODO: can this be replaced with resources instead?
-        server.tool('getTodos', 'Get all TODOs', async () => {
-            const todos = await this.todoService.get()
+        server.resource("Todos", new ResourceTemplate("todoapp://todos/{id}", {
+                list: async () => {
+                    const todos = await this.todoService.get()
 
-            const notYetDone = todos.filter(todo => !todo.completed)
-                .map(todo => `- ` + todo.text + ' id: ' + todo.id)
-                .join('\n');
-            const done = todos.filter(todo => todo.completed)
-                .map(todo => `- ` + todo.text + ' id: ' + todo.id)
-                .join('\n');
-
-            const todoList = `TODO:\n${notYetDone}\nDONE:\n${done}`;
-
-            return {
-                content: [{type: "text", text: todoList}]
-            };
-        })
+                    return {
+                        resources: todos.map(todo => ({
+                            name: todo.text,
+                            uri: `todoapp://todos/${todo.id}`
+                        }))
+                    }
+                }
+            }),
+            async (uri, {id}) => {
+                const todos = await this.todoService.get();
+                const todo = todos.find(todo => todo.id === id);
+                return {
+                    contents: [
+                        {
+                            uri: uri.href,
+                            text: todo ? `text: ${todo.text} completed: ${todo.completed}` : 'NOT FOUND',
+                        },
+                    ],
+                }
+            },
+        )
 
         server.tool('createTodo', 'Add a new TODO task', {todoText: z.string()}, async ({todoText}) => {
             await this.todoService.add(todoText)
