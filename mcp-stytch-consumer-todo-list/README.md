@@ -46,10 +46,10 @@ VITE_STYTCH_PUBLIC_TOKEN=public-token-test-abc123-abcde-1234-0987-0000-abcd1234
 
 Open `wranger.jsonc` in the text editor of your choice, and set `vars.STYTCH_PROJECT_ID` using the `Project ID` found on [Project Settings](https://stytch.com/dashboard/project-settings?env=test).
 ```
-    // This is what a completed wrangler.jsonc will look like
-	"vars": {
-		"STYTCH_PROJECT_ID": "project-test-6c20cd16-73d5-44f7-852c-9a7e7b2ccf62"
-	},
+// This is what a completed wrangler.jsonc will look like
+"vars": {
+   "STYTCH_PROJECT_ID": "project-test-6c20cd16-73d5-44f7-852c-9a7e7b2ccf62"
+},
 ```
 
 ## Running locally
@@ -74,10 +74,10 @@ wrangler kv:namespace create TODOS
 
 ```
 "kv_namespaces": [
-  {
-    "binding": "TODOS",
-    "id": "your-kv-namespace-id"
-  }
+   {
+      "binding": "TODOS",
+      "id": "your-kv-namespace-id"
+   }
 ]
 ```
 

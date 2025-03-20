@@ -43,7 +43,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "TODOS",
-			"id": "8579799313be4e2aa06445981011b13e"
+			"id": "<YOUR_KV_NAMESPACE_ID>"
 		}
 	],
 	/**
@@ -51,7 +51,7 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	"vars": {
-		"STYTCH_PROJECT_ID": "project-test-6c20cd16-73d5-44f7-852c-9a7e7b2ccf62"
+		"STYTCH_PROJECT_ID": "TODO-FROM-STYTCH-DASHBOARD"
 	},
 	/**
 	 * Note: Use secrets to store sensitive data.
