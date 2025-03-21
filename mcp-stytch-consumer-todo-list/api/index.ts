@@ -1,14 +1,19 @@
 import {TodoMPC} from "./TodoMPC.ts";
-import {getStytchOAuthEndpointUrl, validateBearerToken} from "./lib/auth";
-import {app} from "./TodoAPI.ts";
+import {getStytchOAuthEndpointUrl, stytchBearerTokenAuthMiddleware} from "./lib/auth";
+import {TodoAPI} from "./TodoAPI.ts";
 import {cors} from "hono/cors";
+import {Hono} from "hono";
 
 // Export the TodoMPC class so the Worker runtime can find it
 export {TodoMPC};
 
-app
-    .use(cors({ origin: '*' }))
-    .get('/.well-known/oauth-authorization-server', async (c) => {
+export default new Hono<{Bindings: Env}>()
+
+    // Mount the TODO API underneath us
+    .route('/api', TodoAPI)
+
+    // Serve the OAuth Authorization Server response for Dynamic Client Registration
+    .get('/.well-known/oauth-authorization-server', cors({ origin: '*' }), async (c) => {
         const url = new URL(c.req.url);
         return c.json({
             issuer: c.env.STYTCH_PROJECT_ID,
@@ -25,50 +30,10 @@ app
         })
     })
 
-export default {
-    async fetch(request, env, ctx) {
-        const url = new URL(request.url);
+    // Let the MPC Server have a go at handling the request
+    .use('/sse', stytchBearerTokenAuthMiddleware)
+    .route('/sse', TodoMPC.mount())
 
-        // API routes should be handled by the Hono app
-        if (url.pathname.startsWith("/api") || url.pathname.startsWith("/.well-known")) {
-            return app.fetch(request, env);
-        }
-
-        // SSE routes should be handled by the MCP server
-        // Only allow authenticated requests through
-        if (url.pathname.startsWith("/sse")) {
-            try {
-                ctx.props = await validateBearerToken(request, env);
-            } catch (error) {
-                console.error(error)
-                return createErrorResponse('invalid_token', 'Missing or invalid access token', 401, {
-                    'WWW-Authenticate': 'Bearer realm="OAuth", error="invalid_token", error_description="Missing or invalid access token"',
-                })
-            }
-
-            // @ts-ignore
-            const handler = new TodoMPC.Router(ctx, env)
-            return handler.fetch(request)
-        }
-
-        // Everything else is a static asset to serve up
-        return env.ASSETS.fetch(request);
-    }
-} satisfies ExportedHandler<Env>;
-
-
-function createErrorResponse(code: string, description: string, status: number = 400, headers: Record<string, string> = {}): Response {
-    const body = JSON.stringify({
-        error: code,
-        error_description: description,
-    })
-
-    return new Response(body, {
-        status,
-        headers: {
-            'Content-Type': 'application/json',
-            ...headers,
-        },
-    })
-}
+    // Finally - serve static assets from Vite
+    .mount('/', (req, env) => env.ASSETS.fetch(req))
 

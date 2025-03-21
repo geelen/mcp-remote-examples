@@ -1,6 +1,6 @@
 import {McpServer, ResourceTemplate} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {z} from 'zod'
-import {MCPEntrypoint} from "./lib/MCPEntrypoint.ts";
+import {DurableMCP} from "./lib/MCPEntrypoint.ts";
 import {todoService} from "./TodoService.ts";
 import {AuthenticationContext} from "../types";
 
@@ -8,7 +8,9 @@ import {AuthenticationContext} from "../types";
  * The `TodoMPC` class exposes the TODO Service via the Model Context Protocol
  * for consumption by API Agents
  */
-export class TodoMPC extends MCPEntrypoint<AuthenticationContext> {
+export class TodoMPC extends DurableMCP<AuthenticationContext, Env> {
+    async init() {
+    }
     get todoService() {
         return todoService(this.env, this.props.claims.sub)
     }

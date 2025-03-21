@@ -7,7 +7,7 @@ import {getCookie} from "hono/cookie";
  * stytchAuthMiddleware is a Hono middleware that validates that the user is logged in
  * It checks for the stytch_session_jwt cookie set by the Stytch FE SDK
  */
-export const stytchAuthMiddeware = createMiddleware<{
+export const stytchSessionAuthMiddleware = createMiddleware<{
     Variables: {
         userID: string
     },
@@ -27,25 +27,33 @@ export const stytchAuthMiddeware = createMiddleware<{
 })
 
 /**
- * validateBearerToken checks that the request has a valid Stytch-issued bearer token
+ * stytchBearerTokenAuthMiddleware is a Hono middleware that validates that the request has a Stytch-issued bearer token
  * Tokens are issued to clients at the end of a successful OAuth flow
  */
-export async function validateBearerToken(request: Request, env: Env) {
-    const authHeader = request.headers.get('Authorization')
+export const stytchBearerTokenAuthMiddleware = createMiddleware<{
+    Bindings: Env,
+}>(async (c, next) => {
+    const authHeader = c.req.header('Authorization')
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new Error('Missing or invalid access token');
+        throw new HTTPException(401, {message: 'Missing or invalid access token'})
     }
-    const accessToken = authHeader.substring(7)
+    const accessToken = authHeader.substring(7);
 
-    const verifyResult = await validateStytchJWT(accessToken, env)
-
-    // Return the decrypted props to be passed on the ctx
-    return {
-        claims: verifyResult.payload,
-        accessToken,
+    try {
+        const verifyResult = await validateStytchJWT(accessToken, c.env)
+        // @ts-expect-error Props go brr
+        c.executionCtx.props =  {
+            claims: verifyResult.payload,
+            accessToken,
+        }
+    } catch (error) {
+        console.error(error);
+        throw new HTTPException(401, {message: 'Unauthenticated'})
     }
-}
+
+    await next()
+})
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 

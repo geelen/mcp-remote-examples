@@ -51,7 +51,7 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	"vars": {
-		"STYTCH_PROJECT_ID": "TODO-FROM-STYTCH-DASHBOARD"
+		"STYTCH_PROJECT_ID": "<YOUR_PROJECT_ID_FROM_STYTCH_DASHBOARD>"
 	},
 	/**
 	 * Note: Use secrets to store sensitive data.
@@ -62,6 +62,7 @@
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
 	 */
 	"assets": {
+		"run_worker_first": true,
 		"not_found_handling": "single-page-application",
 		"binding": "ASSETS"
 	}

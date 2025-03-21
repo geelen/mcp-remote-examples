@@ -4,25 +4,25 @@ import {TodoApp} from "../api/TodoAPI.ts";
 import {withLoginRequired} from "./Auth.tsx";
 import {Todo} from "../types";
 
-const client = hc<TodoApp>(window.location.origin)
+const client = hc<TodoApp>(`${window.location.origin}/api`)
 
 const createTodo = (todoText: string) =>
-    client.api.todos.$post({json: {todoText}})
+    client.todos.$post({json: {todoText}})
         .then(res => res.json())
         .then(res => res.todos)
 
 const getTodos = () =>
-    client.api.todos.$get()
+    client.todos.$get()
         .then(res => res.json())
         .then(res => res.todos)
 
 const deleteTodo = (id: string) =>
-    client.api.todos[':id'].$delete({param: {id}})
+    client.todos[':id'].$delete({param: {id}})
         .then(res => res.json())
         .then(res => res.todos)
 
 const markComplete = (id: string) =>
-    client.api.todos[':id'].complete.$post({param: {id}})
+    client.todos[':id'].complete.$post({param: {id}})
         .then(res => res.json())
         .then(res => res.todos)
 
