@@ -1,5 +1,5 @@
 import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-mcp/vendor/workers-oauth-provider/oauth-provider.js'
-import { MCPEntrypoint } from './lib/MCPEntrypoint'
+import { DurableMCP } from 'workers-mcp'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'
@@ -12,20 +12,20 @@ type Props = {
   token: Record<string, string>
 }
 
-export class MyMCP extends MCPEntrypoint<Props> {
-  get server() {
-    const server = new McpServer({
-      name: 'Cloudflare OAuth Proxy Demo',
-      version: '1.0.0',
-    })
+export class MyMCP extends DurableMCP<Props> {
+  server = new McpServer({
+    name: 'Cloudflare OAuth Proxy Demo',
+    version: '1.0.0',
+  })
 
-    server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => {
+  async init() {
+    this.server.tool('add', 'Add two numbers the way only MCP can', { a: z.number(), b: z.number() }, async ({ a, b }) => {
       return {
         content: [{ type: 'text', text: String(a + b) }],
       }
     })
 
-    server.tool('listAccounts', 'List the Cloudflare accounts your user has access to', {}, async () => {
+    this.server.tool('listAccounts', 'List the Cloudflare accounts your user has access to', {}, async () => {
       // TODO: refresh token if expired
       const { access_token } = this.props.token
       const accounts = await fetch('https://api.cloudflare.com/client/v4/accounts', {
@@ -38,8 +38,6 @@ export class MyMCP extends MCPEntrypoint<Props> {
         content: [{ type: 'text', text: JSON.stringify(accounts) }],
       }
     })
-
-    return server
   }
 }
 
@@ -97,7 +95,7 @@ app.get('/oauth/callback', async (c) => {
     return c.text('Missing access token', 400)
   }
 
-  // Fetch the user info from GitHub
+  // Fetch the user info from Cloudflare
   const apiRes = await fetch(`https://api.cloudflare.com/client/v4/user`, {
     headers: {
       Authorization: `bearer ${accessToken}`,

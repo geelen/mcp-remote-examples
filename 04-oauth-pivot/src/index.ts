@@ -99,7 +99,6 @@ app.get('/authorize', async (c) => {
  * down to the client. It ends by redirecting the client back to _its_ callback URL
  */
 app.get('/callback', async (c) => {
-  // Get the oathReqInfo out of KV
   const oauthReqInfo = JSON.parse(atob(c.req.query('state') as string)) as AuthRequest
   if (!oauthReqInfo.clientId) {
     return c.text('Invalid state', 400)
