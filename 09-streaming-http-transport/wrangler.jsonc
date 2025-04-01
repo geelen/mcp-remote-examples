@@ -4,19 +4,16 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "08-streaming-transport",
-	"main": "./src/api/index.ts",
-	"compatibility_date": "2024-11-01",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"name": "09-streaming-http-transport",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-03-27",
+	"compatibility_flags": ["nodejs_compat"],
+	// "assets": {
+	// 	"binding": "ASSETS",
+	// 	"directory": "./public"
+	// },
 	"observability": {
 		"enabled": true
-	},
-	"upload_source_maps": true,
-	"assets": {
-		"binding": "ASSETS",
-		"not_found_handling": "single-page-application"
 	}
 	/**
 	 * Smart Placement
