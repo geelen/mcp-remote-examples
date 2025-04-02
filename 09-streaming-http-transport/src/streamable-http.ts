@@ -2,7 +2,6 @@
 // https://developers.cloudflare.com/workers/runtime-apis/nodejs/crypto/
 // @ts-ignore
 import { randomUUID } from 'node:crypto';
-// import { IncomingMessage, ServerResponse } from 'node:http';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { JSONRPCMessage, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types.js';
 import getRawBody from 'raw-body';
@@ -11,9 +10,11 @@ import contentType from 'content-type';
 const MAXIMUM_MESSAGE_SIZE = '4mb';
 
 interface StreamConnection {
-	response: ServerResponse;
+	writer: WritableStreamDefaultWriter<any>;
+	encoder: TextEncoder;
 	lastEventId?: string;
 	messages: Array<{
+		id: string;
 		message: JSONRPCMessage;
 	}>;
 	// mark this connection as a response to a specific request
@@ -284,13 +285,13 @@ export class StreamableHTTPServerTransport implements Transport {
 			);
 
 			if (hasOnlyNotificationsOrResponses) {
-				// if it only contains notifications or responses, return 202
-				res.writeHead(202).end();
-
 				// handle each message
 				for (const message of messages) {
 					this.onmessage?.(message);
 				}
+
+				// if it only contains notifications or responses, return 202
+				return new Response(null, { status: 202 });
 			} else if (hasRequests) {
 				// if it contains requests, you can choose to return an SSE stream or a JSON response
 				const useSSE = acceptHeader.includes('text/event-stream');
@@ -362,27 +363,27 @@ export class StreamableHTTPServerTransport implements Transport {
 			}
 		} catch (error) {
 			// return JSON-RPC formatted error
-			res.writeHead(400).end(
-				JSON.stringify({
-					jsonrpc: '2.0',
-					error: {
-						code: -32700,
-						message: 'Parse error',
-						data: String(error),
-					},
-					id: null,
-				})
-			);
+			const body = JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32700,
+					message: 'Parse error',
+					data: String(error),
+				},
+				id: null,
+			});
+
 			this.onerror?.(error as Error);
+			return new Response(body, { status: 400 });
 		}
 	}
 
 	/**
 	 * Handles DELETE requests to terminate sessions
 	 */
-	private async handleDeleteRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	private async handleDeleteRequest(req: Request): Promise<Response> {
 		await this.close();
-		res.writeHead(200).end();
+		return new Response(null, { status: 200 });
 	}
 
 	/**
