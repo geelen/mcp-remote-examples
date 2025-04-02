@@ -1,5 +1,8 @@
+// This should be available in workers. Not sure why it's erroring here:
+// https://developers.cloudflare.com/workers/runtime-apis/nodejs/crypto/
+// @ts-ignore
 import { randomUUID } from 'node:crypto';
-import { IncomingMessage, ServerResponse } from 'node:http';
+// import { IncomingMessage, ServerResponse } from 'node:http';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { JSONRPCMessage, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types.js';
 import getRawBody from 'raw-body';
@@ -98,13 +101,13 @@ export class StreamableHTTPServerTransport implements Transport {
 	/**
 	 * Handles an incoming HTTP request, whether GET or POST
 	 */
-	async handleRequest(req: IncomingMessage, res: ServerResponse, parsedBody?: unknown): Promise<void> {
+	async handleRequest(req: Request, parsedBody?: unknown): Promise<Response> {
 		// Only validate session ID for non-initialization requests when session management is enabled
 		if (this._enableSessionManagement) {
-			const sessionId = req.headers['mcp-session-id'];
+			const sessionId = req.headers.get('mcp-session-id');
 
 			// Check if this might be an initialization request
-			const isInitializationRequest = req.method === 'POST' && req.headers['content-type']?.includes('application/json');
+			const isInitializationRequest = req.method === 'POST' && req.headers.get('content-type')?.includes('application/json');
 
 			if (isInitializationRequest) {
 				// For POST requests with JSON content, we need to check if it's an initialization request
@@ -112,75 +115,68 @@ export class StreamableHTTPServerTransport implements Transport {
 				// Continue processing normally
 			} else if (!sessionId) {
 				// Non-initialization requests without a session ID should return 400 Bad Request
-				res.writeHead(400).end(
-					JSON.stringify({
-						jsonrpc: '2.0',
-						error: {
-							code: -32000,
-							message: 'Bad Request: Mcp-Session-Id header is required',
-						},
-						id: null,
-					})
-				);
-				return;
+				const body = JSON.stringify({
+					jsonrpc: '2.0',
+					error: {
+						code: -32000,
+						message: 'Bad Request: Mcp-Session-Id header is required',
+					},
+					id: null,
+				});
+				return new Response(body, { status: 400 });
 			} else if ((Array.isArray(sessionId) ? sessionId[0] : sessionId) !== this._sessionId) {
 				// Reject requests with invalid session ID with 404 Not Found
-				res.writeHead(404).end(
-					JSON.stringify({
-						jsonrpc: '2.0',
-						error: {
-							code: -32001,
-							message: 'Session not found',
-						},
-						id: null,
-					})
-				);
-				return;
+				const body = JSON.stringify({
+					jsonrpc: '2.0',
+					error: {
+						code: -32001,
+						message: 'Session not found',
+					},
+					id: null,
+				});
+				return new Response(body, { status: 404 });
 			}
 		}
 
 		if (req.method === 'GET') {
-			await this.handleGetRequest(req, res);
+			return await this.handleGetRequest(req);
 		} else if (req.method === 'POST') {
-			await this.handlePostRequest(req, res, parsedBody);
+			return await this.handlePostRequest(req, parsedBody);
 		} else if (req.method === 'DELETE') {
-			await this.handleDeleteRequest(req, res);
+			return await this.handleDeleteRequest(req);
 		} else {
-			res.writeHead(405).end(
-				JSON.stringify({
-					jsonrpc: '2.0',
-					error: {
-						code: -32000,
-						message: 'Method not allowed',
-					},
-					id: null,
-				})
-			);
+			const body = JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32000,
+					message: 'Method not allowed',
+				},
+				id: null,
+			});
+			return new Response(body, { status: 405 });
 		}
 	}
 
 	/**
 	 * Handles GET requests to establish SSE connections
 	 */
-	private async handleGetRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+	private async handleGetRequest(req: Request): Promise<Response> {
 		// validate the Accept header
-		const acceptHeader = req.headers.accept;
+		const acceptHeader = req.headers.get('accept');
 		if (!acceptHeader || !acceptHeader.includes('text/event-stream')) {
-			res.writeHead(406).end(
-				JSON.stringify({
-					jsonrpc: '2.0',
-					error: {
-						code: -32000,
-						message: 'Not Acceptable: Client must accept text/event-stream',
-					},
-					id: null,
-				})
-			);
-			return;
+			const body = JSON.stringify({
+				jsonrpc: '2.0',
+				error: {
+					code: -32000,
+					message: 'Not Acceptable: Client must accept text/event-stream',
+				},
+				id: null,
+			});
+			return new Response(body, { status: 406 });
 		}
 
 		const connectionId = randomUUID();
-		const lastEventId = req.headers['last-event-id'];
+		const lastEventId = req.headers.get('last-event-id');
 		const lastEventIdStr = Array.isArray(lastEventId) ? lastEventId[0] : lastEventId;
 
 		// Prepare response headers
@@ -227,37 +223,33 @@ export class StreamableHTTPServerTransport implements Transport {
 	/**
 	 * Handles POST requests containing JSON-RPC messages
 	 */
-	private async handlePostRequest(req: IncomingMessage, res: ServerResponse, parsedBody?: unknown): Promise<void> {
+	private async handlePostRequest(req: Request, parsedBody?: unknown): Promise<Response> {
 		try {
 			// validate the Accept header
-			const acceptHeader = req.headers.accept;
+			const acceptHeader = req.headers.get('accept');
 			if (!acceptHeader || (!acceptHeader.includes('application/json') && !acceptHeader.includes('text/event-stream'))) {
-				res.writeHead(406).end(
-					JSON.stringify({
-						jsonrpc: '2.0',
-						error: {
-							code: -32000,
-							message: 'Not Acceptable: Client must accept application/json and/or text/event-stream',
-						},
-						id: null,
-					})
-				);
-				return;
+				const body = JSON.stringify({
+					jsonrpc: '2.0',
+					error: {
+						code: -32000,
+						message: 'Not Acceptable: Client must accept application/json and/or text/event-stream',
+					},
+					id: null,
+				});
+				return new Response(body, { status: 406 });
 			}
 
-			const ct = req.headers['content-type'];
+			const ct = req.headers.get('content-type');
 			if (!ct || !ct.includes('application/json')) {
-				res.writeHead(415).end(
-					JSON.stringify({
-						jsonrpc: '2.0',
-						error: {
-							code: -32000,
-							message: 'Unsupported Media Type: Content-Type must be application/json',
-						},
-						id: null,
-					})
-				);
-				return;
+				const body = JSON.stringify({
+					jsonrpc: '2.0',
+					error: {
+						code: -32000,
+						message: 'Unsupported Media Type: Content-Type must be application/json',
+					},
+					id: null,
+				});
+				return new Response(body, { status: 415 });
 			}
 
 			let rawMessage;
