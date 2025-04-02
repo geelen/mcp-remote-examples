@@ -1,11 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from './streamable-http.js';
 
-// @ts-ignore
-export function serveMcp<Env>({ server }: { server: McpServer; endpoint: string }) {
+export function serveMcp<Env>({ server }: { server: McpServer }) {
 	return async (request: Request, env: Env, ctx: ExecutionContext) => {
-		// start transport in stateless mode
-		let transport = new StreamableHTTPServerTransport('/mcp', {
+		let transport = new StreamableHTTPServerTransport({
+			// start transport in stateless mode
 			enableSessionManagement: false,
 		});
 

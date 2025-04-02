@@ -20,10 +20,5 @@ server.tool('multiply', { a: z.number(), b: z.number() }, async ({ a, b }) => ({
 }));
 
 export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		let fetch = serveMcp({
-			server,
-		});
-		return fetch(request, env, ctx);
-	},
+	fetch: serveMcp({ server }),
 } satisfies ExportedHandler<Env>;

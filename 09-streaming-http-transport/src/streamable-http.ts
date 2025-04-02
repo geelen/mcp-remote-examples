@@ -83,7 +83,7 @@ export class StreamableHTTPServerTransport implements Transport {
 	onerror?: (error: Error) => void;
 	onmessage?: (message: JSONRPCMessage) => void;
 
-	constructor(private _endpoint: string, options?: StreamableHTTPServerTransportOptions) {
+	constructor(options?: StreamableHTTPServerTransportOptions) {
 		this._sessionId = randomUUID();
 		this._enableSessionManagement = options?.enableSessionManagement !== false;
 	}
@@ -192,10 +192,16 @@ export class StreamableHTTPServerTransport implements Transport {
 			headers['mcp-session-id'] = this._sessionId;
 		}
 
-		res.writeHead(200, headers);
+		// Create a Transform Stream for SSE
+		const { readable, writable } = new TransformStream();
+		const writer = writable.getWriter();
+		const encoder = new TextEncoder();
+
+		// res.writeHead(200, headers);
 
 		const connection: StreamConnection = {
-			response: res,
+			writer,
+			encoder,
 			lastEventId: lastEventIdStr,
 			messages: [],
 		};
@@ -207,17 +213,23 @@ export class StreamableHTTPServerTransport implements Transport {
 			this.replayMessages(connectionId, lastEventIdStr);
 		}
 
-		res.on('close', () => {
-			this._connections.delete(connectionId);
-			// remove all request mappings associated with this connection
-			for (const [reqId, connId] of this._requestConnections.entries()) {
-				if (connId === connectionId) {
-					this._requestConnections.delete(reqId);
-				}
-			}
-			if (this._connections.size === 0) {
-				this.onclose?.();
-			}
+		// TODO: There isn't an obvious replacement for this using the TransformStream API
+		// res.on('close', () => {
+		// 	this._connections.delete(connectionId);
+		// 	// remove all request mappings associated with this connection
+		// 	for (const [reqId, connId] of this._requestConnections.entries()) {
+		// 		if (connId === connectionId) {
+		// 			this._requestConnections.delete(reqId);
+		// 		}
+		// 	}
+		// 	if (this._connections.size === 0) {
+		// 		this.onclose?.();
+		// 	}
+		// });
+
+		return new Response(readable, {
+			headers: headers,
+			status: 200,
 		});
 	}
 
@@ -309,11 +321,17 @@ export class StreamableHTTPServerTransport implements Transport {
 						headers['mcp-session-id'] = this._sessionId;
 					}
 
-					res.writeHead(200, headers);
+					// Create a Transform Stream for SSE
+					const { readable, writable } = new TransformStream();
+					const writer = writable.getWriter();
+					const encoder = new TextEncoder();
+
+					// res.writeHead(200, headers);
 
 					const connectionId = randomUUID();
 					const connection: StreamConnection = {
-						response: res,
+						writer,
+						encoder,
 						messages: [],
 					};
 
@@ -327,17 +345,23 @@ export class StreamableHTTPServerTransport implements Transport {
 						this.onmessage?.(message);
 					}
 
-					res.on('close', () => {
-						this._connections.delete(connectionId);
-						// remove all request mappings associated with this connection
-						for (const [reqId, connId] of this._requestConnections.entries()) {
-							if (connId === connectionId) {
-								this._requestConnections.delete(reqId);
-							}
-						}
-						if (this._connections.size === 0) {
-							this.onclose?.();
-						}
+					// TODO: There isn't an obvious replacement for this using the TransformStream API
+					// res.on('close', () => {
+					// 	this._connections.delete(connectionId);
+					// 	// remove all request mappings associated with this connection
+					// 	for (const [reqId, connId] of this._requestConnections.entries()) {
+					// 		if (connId === connectionId) {
+					// 			this._requestConnections.delete(reqId);
+					// 		}
+					// 	}
+					// 	if (this._connections.size === 0) {
+					// 		this.onclose?.();
+					// 	}
+					// });
+
+					return new Response(readable, {
+						headers: headers,
+						status: 200,
 					});
 				} else {
 					// use direct JSON response
@@ -351,14 +375,19 @@ export class StreamableHTTPServerTransport implements Transport {
 						headers['mcp-session-id'] = this._sessionId;
 					}
 
-					res.writeHead(200, headers);
-
 					// handle each message
 					for (const message of messages) {
 						this.onmessage?.(message);
 					}
 
-					res.end();
+					// TODO: It's not clear to me that this case is necessary based on the spec,
+					// or if included, how the responses to the requests would be sent back to the client
+					// I think you'd just get an error that there are no active connections?
+
+					return new Response(null, {
+						headers: headers,
+						status: 200,
+					});
 				}
 			}
 		} catch (error) {
@@ -401,13 +430,13 @@ export class StreamableHTTPServerTransport implements Transport {
 		if (!connection) return;
 
 		for (const [id, { message }] of messages) {
-			connection.response.write(`id: ${id}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
+			connection.writer.write(`id: ${id}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
 		}
 	}
 
 	async close(): Promise<void> {
 		for (const connection of this._connections.values()) {
-			connection.response.end();
+			connection.writer.close();
 		}
 		this._connections.clear();
 		this._messageHistory.clear();
@@ -465,11 +494,11 @@ export class StreamableHTTPServerTransport implements Transport {
 			// if it is a response message, only send to the target connection
 			if ('id' in message && ('result' in message || 'error' in message)) {
 				if (connId === targetConnectionId) {
-					connection.response.write(`id: ${messageId}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
+					connection.writer.write(`id: ${messageId}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
 				}
 			} else {
 				// for other messages, send to all connections
-				connection.response.write(`id: ${messageId}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
+				connection.writer.write(`id: ${messageId}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
 			}
 		}
 	}
