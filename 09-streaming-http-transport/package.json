@@ -1,0 +1,22 @@
+{
+	"name": "09-streaming-http-transport",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.7.5",
+		"@cloudflare/workers-types": "^4.20250402.0",
+		"@modelcontextprotocol/sdk": "^1.8.0",
+		"@types/content-type": "^1.1.8",
+		"content-type": "^1.0.5",
+		"raw-body": "^3.0.0",
+		"typescript": "^5.5.2",
+		"vitest": "~3.0.7",
+		"wrangler": "^4.6.0"
+	}
+}
