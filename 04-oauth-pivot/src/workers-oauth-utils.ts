@@ -164,147 +164,381 @@ export async function clientIdAlreadyApproved(request: Request, clientId: string
 }
 
 /**
- * Options for rendering the approval dialog.
+ * Configuration for the approval dialog
  */
 export interface ApprovalDialogOptions {
-  /** Information about the OAuth client requesting authorization. */
+  /**
+   * Client information to display in the approval dialog
+   */
   client: ClientInfo | null
-  /** Information about the MCP server presenting the dialog. */
+  /**
+   * Server information to display in the approval dialog
+   */
   server: {
     name: string
-    logo?: string // URL
+    logo?: string
     description?: string
   }
-  /** Arbitrary state to be preserved and passed through the form submission. */
-  state: any
+  /**
+   * Arbitrary state data to pass through the approval flow
+   * Will be encoded in the form and returned when approval is complete
+   */
+  state: Record<string, any>
+  /**
+   * Name of the cookie to use for storing approvals
+   * @default "mcp_approved_clients"
+   */
+  cookieName?: string
+  /**
+   * Secret used to sign cookies for verification
+   * Can be a string or Uint8Array
+   * @default Built-in Uint8Array key
+   */
+  cookieSecret?: string | Uint8Array
+  /**
+   * Cookie domain
+   * @default current domain
+   */
+  cookieDomain?: string
+  /**
+   * Cookie path
+   * @default "/"
+   */
+  cookiePath?: string
+  /**
+   * Cookie max age in seconds
+   * @default 30 days
+   */
+  cookieMaxAge?: number
 }
 
 /**
- * Renders an HTML approval dialog for the user.
+ * Renders an approval dialog for OAuth authorization
+ * The dialog displays information about the client and server
+ * and includes a form to submit approval
  *
- * @param _request - The incoming Request object (currently unused, but kept for potential future use like reading Host).
- * @param options - Configuration for rendering the dialog, including client, server, and state data.
- * @returns An HTML Response object containing the approval dialog.
+ * @param request - The HTTP request
+ * @param options - Configuration for the approval dialog
+ * @returns A Response containing the HTML approval dialog
  */
-export function renderApprovalDialog(_request: Request, options: ApprovalDialogOptions): Response {
+export function renderApprovalDialog(request: Request, options: ApprovalDialogOptions): Response {
   const { client, server, state } = options
 
-  // Basic validation
-  if (!client) {
-    return new Response('Client information is missing.', { status: 400 })
-  }
-  if (!state) {
-    return new Response('State information is missing.', { status: 400 })
-  }
+  // Encode state for form submission
+  const encodedState = btoa(JSON.stringify(state))
 
-  const encodedState = encodeState(state)
-  const clientName = client.clientName || client.clientId // Fallback to clientId if name is missing
-  const clientLogo = client.logoUri
-    ? `<img src="${client.logoUri}" alt="${clientName} Logo" style="max-height: 50px; max-width: 150px; margin-bottom: 1em;"/>`
-    : ''
-  const serverLogo = server.logo
-    ? `<img src="${server.logo}" alt="${server.name} Logo" style="max-height: 30px; margin-right: 10px; vertical-align: middle;"/>`
-    : ''
-  const serverDescription = server.description ? `<p style="font-size: 0.9em; color: #555;">${server.description}</p>` : ''
+  // Sanitize any untrusted content
+  const serverName = sanitizeHtml(server.name)
+  const clientName = client?.clientName ? sanitizeHtml(client.clientName) : 'Unknown MCP Client'
+  const serverDescription = server.description ? sanitizeHtml(server.description) : ''
 
-  const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Authorize Application - ${server.name}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background-color: #f4f5f7;
-      margin: 0;
-      color: #333;
-    }
-    .container {
-      background-color: #fff;
-      padding: 2em 3em;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      max-width: 450px;
-      width: 90%;
-      text-align: center;
-    }
-    .server-header {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1em;
-      padding-bottom: 1em;
-      border-bottom: 1px solid #eee;
-    }
-    .server-header h1 {
-        font-size: 1.2em;
-        margin: 0;
-        color: #555;
-    }
-    .client-info {
-        margin-bottom: 1.5em;
-    }
-    .client-info h2 {
-        font-size: 1.4em;
-        margin-bottom: 0.5em;
-    }
-    .client-info p {
-        margin-bottom: 1em;
-        font-size: 1em;
-        line-height: 1.5;
-    }
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      border-radius: 5px;
-      font-size: 1em;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    form {
-        margin-top: 1.5em;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="server-header">
-        ${serverLogo}
-        <h1>${server.name}</h1>
-    </div>
+  // Safe URLs
+  const logoUrl = server.logo ? sanitizeHtml(server.logo) : ''
+  const clientUri = client?.clientUri ? sanitizeHtml(client.clientUri) : ''
+  const policyUri = client?.policyUri ? sanitizeHtml(client.policyUri) : ''
+  const tosUri = client?.tosUri ? sanitizeHtml(client.tosUri) : ''
 
-    <div class="client-info">
-      ${clientLogo}
-      <h2>Authorize ${clientName}</h2>
-      <p>
-        The application <strong>${clientName}</strong> is requesting permission to access your account via <strong>${server.name}</strong>.
-      </p>
-      ${serverDescription}
-    </div>
+  // Client contacts
+  const contacts = client?.contacts && client.contacts.length > 0 ? sanitizeHtml(client.contacts.join(', ')) : ''
 
-    <form method="POST">
-      <input type="hidden" name="state" value="${encodedState}">
-      <button type="submit">Approve</button>
-      </form>
-  </div>
-</body>
-</html>
+  // Get redirect URIs
+  const redirectUris = client?.redirectUris && client.redirectUris.length > 0 ? client.redirectUris.map((uri) => sanitizeHtml(uri)) : []
+
+  // Generate HTML for the approval dialog
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${clientName} | Authorization Request</title>
+        <style>
+          /* Modern, responsive styling with system fonts */
+          :root {
+            --primary-color: #0070f3;
+            --error-color: #f44336;
+            --border-color: #e5e7eb;
+            --text-color: #333;
+            --background-color: #fff;
+            --card-shadow: 0 8px 36px 8px rgba(0, 0, 0, 0.1);
+          }
+          
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, 
+                         Helvetica, Arial, sans-serif, "Apple Color Emoji", 
+                         "Segoe UI Emoji", "Segoe UI Symbol";
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: #f9fafb;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 1rem;
+          }
+          
+          .precard {
+            padding: 2rem;
+            text-align: center;
+          }
+          
+          .card {
+            background-color: var(--background-color);
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            padding: 2rem;
+          }
+          
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+          }
+          
+          .logo {
+            width: 48px;
+            height: 48px;
+            margin-right: 1rem;
+            border-radius: 8px;
+            object-fit: contain;
+          }
+          
+          .title {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 400;
+          }
+          
+          .alert {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin: 1rem 0;
+            text-align: center;
+          }
+          
+          .description {
+            color: #555;
+          }
+          
+          .client-info {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem 1rem 0.5rem;
+            margin-bottom: 1.5rem;
+          }
+          
+          .client-name {
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin: 0 0 0.5rem 0;
+          }
+          
+          .client-detail {
+            display: flex;
+            margin-bottom: 0.5rem;
+            align-items: baseline;
+          }
+          
+          .detail-label {
+            font-weight: 500;
+            min-width: 120px;
+          }
+          
+          .detail-value {
+            font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            word-break: break-all;
+          }
+          
+          .detail-value a {
+            color: inherit;
+            text-decoration: underline;
+          }
+          
+          .detail-value.small {
+            font-size: 0.8em;
+          }
+          
+          .external-link-icon {
+            font-size: 0.75em;
+            margin-left: 0.25rem;
+            vertical-align: super;
+          }
+          
+          .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 2rem;
+          }
+          
+          .button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+          }
+          
+          .button-primary {
+            background-color: var(--primary-color);
+            color: white;
+          }
+          
+          .button-secondary {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+          }
+          
+          /* Responsive adjustments */
+          @media (max-width: 640px) {
+            .container {
+              margin: 1rem auto;
+              padding: 0.5rem;
+            }
+            
+            .card {
+              padding: 1.5rem;
+            }
+            
+            .client-detail {
+              flex-direction: column;
+            }
+            
+            .detail-label {
+              min-width: unset;
+              margin-bottom: 0.25rem;
+            }
+            
+            .actions {
+              flex-direction: column;
+            }
+            
+            .button {
+              width: 100%;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="precard">
+            <div class="header">
+              ${logoUrl ? `<img src="${logoUrl}" alt="${serverName} Logo" class="logo">` : ''}
+            <h1 class="title"><strong>${serverName}</strong></h1>
+            </div>
+            
+            ${serverDescription ? `<p class="description">${serverDescription}</p>` : ''}
+          </div>
+            
+          <div class="card">
+            
+            <h2 class="alert"><strong>${clientName || 'A new MCP Client'}</strong> is requesting access</h1>
+            
+            <div class="client-info">
+              <div class="client-detail">
+                <div class="detail-label">Name:</div>
+                <div class="detail-value">
+                  ${clientName}
+                </div>
+              </div>
+              
+              ${
+                clientUri
+                  ? `
+                <div class="client-detail">
+                  <div class="detail-label">Website:</div>
+                  <div class="detail-value small">
+                    <a href="${clientUri}" target="_blank" rel="noopener noreferrer">
+                      ${clientUri}
+                    </a>
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+              
+              ${
+                policyUri
+                  ? `
+                <div class="client-detail">
+                  <div class="detail-label">Privacy Policy:</div>
+                  <div class="detail-value">
+                    <a href="${policyUri}" target="_blank" rel="noopener noreferrer">
+                      ${policyUri}
+                    </a>
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+              
+              ${
+                tosUri
+                  ? `
+                <div class="client-detail">
+                  <div class="detail-label">Terms of Service:</div>
+                  <div class="detail-value">
+                    <a href="${tosUri}" target="_blank" rel="noopener noreferrer">
+                      ${tosUri}
+                    </a>
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+              
+              ${
+                redirectUris.length > 0
+                  ? `
+                <div class="client-detail">
+                  <div class="detail-label">Redirect URIs:</div>
+                  <div class="detail-value small">
+                    ${redirectUris.map((uri) => `<div>${uri}</div>`).join('')}
+                  </div>
+                </div>
+              `
+                  : ''
+              }
+              
+              ${
+                contacts
+                  ? `
+                <div class="client-detail">
+                  <div class="detail-label">Contact:</div>
+                  <div class="detail-value">${contacts}</div>
+                </div>
+              `
+                  : ''
+              }
+            </div>
+            
+            <p>This MCP Client is requesting to be authorized on ${serverName}. If you approve, you will be redirected to complete authentication.</p>
+            
+            <form method="post" action="${new URL(request.url).pathname}">
+              <input type="hidden" name="state" value="${encodedState}">
+              
+              <div class="actions">
+                <button type="button" class="button button-secondary" onclick="window.history.back()">Cancel</button>
+                <button type="submit" class="button button-primary">Approve</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </body>
+    </html>
   `
 
-  return new Response(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  return new Response(htmlContent, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
   })
 }
 
@@ -374,4 +608,13 @@ export async function parseRedirectApproval(request: Request, cookieSecret: stri
   }
 
   return { state, headers }
+}
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks
+ * @param unsafe - The unsafe string that might contain HTML
+ * @returns A safe string with HTML special characters escaped
+ */
+function sanitizeHtml(unsafe: string): string {
+  return unsafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
