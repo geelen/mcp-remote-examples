@@ -2,34 +2,58 @@ import type { AuthRequest, OAuthHelpers } from '@cloudflare/workers-oauth-provid
 import { Hono } from 'hono'
 import { Octokit } from 'octokit'
 import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl, Props } from './utils'
+import { env } from 'cloudflare:workers'
+import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from './mcp-oauth-helpers'
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
 
-/**
- * OAuth Authorization Endpoint
- *
- * This route initiates the GitHub OAuth flow when a user wants to log in.
- * It creates a random state parameter to prevent CSRF attacks and stores the
- * original OAuth request information in KV storage for later retrieval.
- * Then it redirects the user to GitHub's authorization page with the appropriate
- * parameters so the user can authenticate and grant permissions.
- */
 app.get('/authorize', async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw)
-  if (!oauthReqInfo.clientId) {
+  const { clientId } = oauthReqInfo
+  if (!clientId) {
     return c.text('Invalid request', 400)
   }
 
-  return Response.redirect(
-    getUpstreamAuthorizeUrl({
-      upstream_url: 'https://github.com/login/oauth/authorize',
-      scope: 'read:user',
-      client_id: c.env.GITHUB_CLIENT_ID,
-      redirect_uri: new URL('/callback', c.req.url).href,
-      state: btoa(JSON.stringify(oauthReqInfo)),
-    }),
-  )
+  if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId)) {
+    return redirectToGithub(c.req.raw, oauthReqInfo)
+  }
+
+  return renderApprovalDialog(c.req.raw, {
+    client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
+    server: {
+      name: 'MCP Remove Server demo',
+      // logo: 'https://example.com/logo.png', //optional
+      description: 'This is a demo server for the MCP Remote Server demo.', // optional
+    },
+    state: { oauthReqInfo }, // arbitrary data that flows through the form submission below
+  })
 })
+
+app.post('/authorize', async (c) => {
+  // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
+  const { state, headers } = await parseRedirectApproval(c.req.raw)
+  if (!state.oauthReqInfo) {
+    return c.text('Invalid request', 400)
+  }
+
+  return redirectToGithub(c.req.raw, state.oauthReqInfo, headers)
+})
+
+async function redirectToGithub(request: Request, oauthReqInfo: AuthRequest, headers: Record<string, string> = {}) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...headers,
+      location: getUpstreamAuthorizeUrl({
+        upstream_url: 'https://github.com/login/oauth/authorize',
+        scope: 'read:user',
+        client_id: env.GITHUB_CLIENT_ID,
+        redirect_uri: new URL('/callback', request.url).href,
+        state: btoa(JSON.stringify(oauthReqInfo)),
+      }),
+    },
+  })
+}
 
 /**
  * OAuth Callback Endpoint
@@ -80,4 +104,4 @@ app.get('/callback', async (c) => {
   return Response.redirect(redirectTo)
 })
 
-export const GitHubHandler = app
+export { app as GitHubHandler }
