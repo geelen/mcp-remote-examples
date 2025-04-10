@@ -3,7 +3,9 @@ import { Hono } from 'hono'
 import { Octokit } from 'octokit'
 import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl, Props } from './utils'
 import { env } from 'cloudflare:workers'
-import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from './mcp-oauth-helpers'
+import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from './workers-oauth-utils'
+
+const COOKIE_SECRET = 'test-secret-obviously-do-better'
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>()
 
@@ -14,15 +16,15 @@ app.get('/authorize', async (c) => {
     return c.text('Invalid request', 400)
   }
 
-  if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId)) {
+  if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId, COOKIE_SECRET)) {
     return redirectToGithub(c.req.raw, oauthReqInfo)
   }
 
   return renderApprovalDialog(c.req.raw, {
     client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
     server: {
-      name: 'MCP Remove Server demo',
-      // logo: 'https://example.com/logo.png', //optional
+      name: "Glen's Cool MCP Server",
+      logo: 'https://pbs.twimg.com/profile_images/683874690293612545/kDStZOBp_400x400.png', //optional
       description: 'This is a demo server for the MCP Remote Server demo.', // optional
     },
     state: { oauthReqInfo }, // arbitrary data that flows through the form submission below
@@ -31,7 +33,7 @@ app.get('/authorize', async (c) => {
 
 app.post('/authorize', async (c) => {
   // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
-  const { state, headers } = await parseRedirectApproval(c.req.raw)
+  const { state, headers } = await parseRedirectApproval(c.req.raw, COOKIE_SECRET)
   if (!state.oauthReqInfo) {
     return c.text('Invalid request', 400)
   }
