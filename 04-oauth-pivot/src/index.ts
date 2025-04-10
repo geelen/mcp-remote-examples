@@ -1,5 +1,5 @@
-import OAuthProvider, { AuthRequest, OAuthHelpers } from 'workers-mcp/vendor/workers-oauth-provider/oauth-provider.js'
-import { DurableMCP } from 'workers-mcp'
+import OAuthProvider, { AuthRequest, OAuthHelpers } from '@cloudflare/workers-oauth-provider'
+import { McpAgent } from 'agents/mcp'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { Hono } from 'hono'
@@ -15,7 +15,7 @@ type Props = {
   accessToken: string
 }
 
-export class MyMCP extends DurableMCP<Props, Env> {
+export class MyMCP extends McpAgent<Env, {}, Props> {
   server = new McpServer({
     name: 'Github OAuth Proxy Demo',
     version: '1.0.0',
