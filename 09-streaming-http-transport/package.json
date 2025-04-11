@@ -11,7 +11,7 @@
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.7.5",
 		"@cloudflare/workers-types": "^4.20250402.0",
-		"@modelcontextprotocol/sdk": "^1.8.0",
+		"@modelcontextprotocol/sdk": "link:/Users/glen/src/hax/mcp/typescript-sdk",
 		"@types/content-type": "^1.1.8",
 		"content-type": "^1.0.5",
 		"raw-body": "^3.0.0",
