@@ -1,4 +1,4 @@
-import { Agent } from 'agents';
+import { Agent, Connection, WSMessage } from 'agents';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
@@ -62,7 +62,7 @@ type ParseMessageResult =
 	  };
 
 // TODO: Swap to https://github.com/modelcontextprotocol/typescript-sdk/pull/281
-// when it gets merged
+// when it gets released
 function parseMessage(message: JSONRPCMessage): ParseMessageResult {
 	const requestResult = JSONRPCRequestSchema.safeParse(message);
 	if (requestResult.success) {
@@ -108,10 +108,24 @@ class McpTransport implements Transport {
 	onmessage?: (message: JSONRPCMessage) => void;
 	sessionId?: string;
 
-	#getWebSocket: () => WebSocket | null;
+	// TODO: If there is an open connection to send server-initiated messages
+	// back, we should use that connection
+	#getWebSocketForGetRequest: () => WebSocket | null;
+
+	// Get the appropriate websocket connection for a given message id
+	#getWebSocketForMessageID: (id: string | number) => WebSocket | null;
+
+	// Notify the server that a response has been sent for a given message id
+	// so that it may clean up it's mapping of message ids to connections
+	// once they are no longer needed
+	#notifyResponseIdSent: (id: string | number) => void;
+
 	#started = false;
-	constructor(getWebSocket: () => WebSocket | null) {
-		this.#getWebSocket = getWebSocket;
+	constructor(getWebSocketForMessageID: (id: string | number) => WebSocket | null, notifyResponseIdSent: (id: string | number) => void) {
+		this.#getWebSocketForMessageID = getWebSocketForMessageID;
+		this.#notifyResponseIdSent = notifyResponseIdSent;
+		// TODO
+		this.#getWebSocketForGetRequest = () => null;
 	}
 
 	async start() {
@@ -127,12 +141,53 @@ class McpTransport implements Transport {
 		if (!this.#started) {
 			throw new Error('Transport not started');
 		}
-		const websocket = this.#getWebSocket();
-		if (!websocket) {
-			throw new Error('WebSocket not connected');
+
+		let websocket: WebSocket | null = null;
+		let parsedMessage = parseMessage(message);
+		switch (parsedMessage.type) {
+			// These types have an id
+			case 'response':
+			case 'error':
+				websocket = this.#getWebSocketForMessageID(parsedMessage.message.id);
+				if (!websocket) {
+					throw new Error(`Could not find WebSocket for message id: ${parsedMessage.message.id}`);
+				}
+				break;
+			// requests have an ID but are originated by the server so do not correspond to
+			// any active connection
+			case 'request':
+				websocket = this.#getWebSocketForGetRequest();
+				break;
+			// Notifications do not have an id
+			case 'notification':
+				websocket = this.#getWebSocketForGetRequest();
+				// I'm a little confused about things like progress notifications,
+				// which are correlated with a specific request but do not have an id
+				// Should we drop these? Create a map of progressTokens and send them
+				// along the same connection? Only send them if there is an open connection
+				// initiated using GET?
+				// https://modelcontextprotocol.io/specification/2025-03-26/basic/utilities/progress
+				//
+				// https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http
+				// The spec says re:POST
+				// The server MAY send JSON-RPC requests and notifications before sending a JSON-RPC
+				// response. These messages SHOULD relate to the originating client request. These
+				// requests and notifications MAY be batched.
+				//
+				// On the GET stream we also have:
+				// These messages SHOULD be unrelated to any concurrently-running JSON-RPC request
+				// from the client.
+				//
+				// So I think we'll need a mapping of progressTokens to IDs to comply. We'll implement
+				// this later.
+				break;
 		}
+
 		try {
-			websocket.send(JSON.stringify(message));
+			websocket?.send(JSON.stringify(message));
+			if (parsedMessage.type === 'response') {
+				this.#notifyResponseIdSent(parsedMessage.message.id);
+			}
 		} catch (error) {
 			this.onerror?.(error as Error);
 			throw error;
@@ -150,6 +205,8 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 	#transport?: McpTransport;
 	#initialized = false;
 	#initRun = false;
+	#requestIdToConnectionId: Map<string | number, string> = new Map();
+
 	abstract server: McpServer;
 	abstract init(): Promise<void>;
 	props!: Props;
@@ -159,7 +216,10 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 		this.init?.();
 
 		// Connect to the MCP server
-		this.#transport = new McpTransport(() => this.getWebSocket());
+		this.#transport = new McpTransport(
+			(id) => this.getWebSocketForResponseID(id.toString()),
+			(id) => this.#requestIdToConnectionId.delete(id)
+		);
 		await this.server.connect(this.#transport);
 	}
 
@@ -182,10 +242,43 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 		this.#connected = true;
 
 		// Connect to the MCP server
-		this.#transport = new McpTransport(() => this.getWebSocket());
+		// TODO: This feels a little contrived
+		this.#transport = new McpTransport(
+			(id) => this.getWebSocketForResponseID(id),
+			(id) => this.#requestIdToConnectionId.delete(id)
+		);
 		await this.server.connect(this.#transport);
 
 		return response;
+	}
+
+	async onMessage(connection: Connection, event: WSMessage) {
+		let message: JSONRPCMessage;
+		try {
+			// Ensure event is a string
+			const data = typeof event === 'string' ? event : new TextDecoder().decode(event);
+			message = JSONRPCMessageSchema.parse(JSON.parse(data));
+		} catch (error) {
+			this.#transport?.onerror?.(error as Error);
+			return;
+		}
+
+		// determine the type of message
+		const parsedMessage = parseMessage(message);
+		switch (parsedMessage.type) {
+			case 'request':
+				this.#requestIdToConnectionId.set(parsedMessage.message.id, connection.id);
+				break;
+			case 'response':
+			case 'notification':
+			case 'error':
+				break;
+		}
+
+		// parse out the id of the message
+		// store the id associated with the connection
+		// pass the message to this.#transport.onmessage
+		this.#transport?.onmessage?.(message);
 	}
 
 	async _init(props: Props) {
@@ -202,20 +295,12 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 		return this.#initialized;
 	}
 
-	getWebSocket() {
-		const websockets = this.ctx.getWebSockets();
-		if (websockets.length === 0) {
+	getWebSocketForResponseID(id: string | number): WebSocket | null {
+		let connectionId = this.#requestIdToConnectionId.get(id);
+		if (!connectionId) {
 			return null;
 		}
-		return websockets[0];
-	}
-
-	getWebSocketForResponseID(id: string) {
-		const websockets = this.ctx.getWebSockets();
-		if (websockets.length === 0) {
-			return null;
-		}
-		return websockets[0];
+		return this.getConnection(connectionId) ?? null;
 	}
 
 	static mount(path: string, { binding = 'MCP_OBJECT', corsOptions }: { binding?: string; corsOptions?: CORSOptions } = {}) {
@@ -398,13 +483,19 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 					return new Response(body, { status: 500 });
 				}
 
+				// Keep track of the request ids that we have sent to the server
+				// so that we can close the connection once we have received
+				// all the responses
+				let requestIds: Set<string | number> = new Set();
+
 				// Accept the WebSocket
 				ws.accept();
 
 				// Handle messages from the Durable Object
 				ws.addEventListener('message', async (event) => {
 					try {
-						const message = JSON.parse(event.data);
+						const data = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data);
+						const message = JSON.parse(data);
 
 						// validate that the message is a valid JSONRPC message
 						const result = JSONRPCMessageSchema.safeParse(message);
@@ -415,9 +506,26 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 							return;
 						}
 
+						// If the message is a response, add the id to the set of request ids
+						const parsedMessage = parseMessage(result.data);
+						switch (parsedMessage.type) {
+							case 'response':
+							case 'error':
+								requestIds.add(parsedMessage.message.id);
+								break;
+							case 'notification':
+							case 'request':
+								break;
+						}
+
 						// Send the message as an SSE event
 						const messageText = `event: message\ndata: ${JSON.stringify(result.data)}\n\n`;
 						await writer.write(encoder.encode(messageText));
+
+						// If we have received all the responses, close the connection
+						if (requestIds.size === messages.length) {
+							ws.close();
+						}
 					} catch (error) {
 						console.error('Error forwarding message to SSE:', error);
 					}
@@ -441,26 +549,45 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 					}
 				});
 
-				// TODO: Send the messages to the agent
 				// If there are no requests, we send the messages to the agent and acknowledge the request with a 202
-				// const hasOnlyNotificationsOrResponses = parsedMessages.every((msg) => msg.type === 'notification' || msg.type === 'response');
-				// if (hasOnlyNotificationsOrResponses) {
-				// 	// TODO: Pass the messages to the agent
-				// 	// for (const message of messages) {
-				// 	// 	this.onmessage?.(message.message);
-				// 	// }
+				// since we don't expect any responses back through this connection
+				const hasOnlyNotificationsOrResponses = parsedMessages.every((msg) => msg.type === 'notification' || msg.type === 'response');
+				if (hasOnlyNotificationsOrResponses) {
+					for (const message of messages) {
+						ws.send(JSON.stringify(message));
+					}
 
-				// 	return new Response(null, { status: 202 });
-				// }
+					// closing the websocket will also close the SSE connection
+					ws.close();
 
-				// Return the SSE response
+					return new Response(null, { status: 202 });
+				}
+
+				for (const message of messages) {
+					let parsedMessage = parseMessage(message);
+					switch (parsedMessage.type) {
+						case 'request':
+							requestIds.add(parsedMessage.message.id);
+							break;
+						case 'notification':
+						case 'response':
+						case 'error':
+							break;
+					}
+					ws.send(JSON.stringify(message));
+				}
+
+				// Return the SSE response. We handle closing the stream in the ws "message"
+				// handler
 				return new Response(readable, {
 					headers: {
 						'Content-Type': 'text/event-stream',
 						'Cache-Control': 'no-cache',
 						Connection: 'keep-alive',
+						'mcp-session-id': sessionId,
 						'Access-Control-Allow-Origin': corsOptions?.origin || '*',
 					},
+					status: 200,
 				});
 			}
 
