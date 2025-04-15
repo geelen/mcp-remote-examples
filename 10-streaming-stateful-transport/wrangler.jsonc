@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "09-streaming-http-transport",
+	"name": "10-streaming-stateful-transport",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-03-27",
 	"compatibility_flags": ["nodejs_compat"],
@@ -14,7 +14,21 @@
 	// },
 	"observability": {
 		"enabled": true
-	}
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "MyMcpAgent",
+				"name": "MCP_OBJECT"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["MyMcpAgent"]
+		}
+	]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

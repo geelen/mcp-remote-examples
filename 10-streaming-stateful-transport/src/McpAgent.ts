@@ -13,7 +13,6 @@ import {
 	JSONRPCRequestSchema,
 	JSONRPCResponse,
 	JSONRPCResponseSchema,
-	RequestId,
 } from '@modelcontextprotocol/sdk/types.js';
 
 const MAXIMUM_MESSAGE_SIZE_BYTES = 4194304; // 4mb in bytes
@@ -113,15 +112,15 @@ class McpTransport implements Transport {
 	#getWebSocketForGetRequest: () => WebSocket | null;
 
 	// Get the appropriate websocket connection for a given message id
-	#getWebSocketForMessageID: (id: string | number) => WebSocket | null;
+	#getWebSocketForMessageID: (id: string) => WebSocket | null;
 
 	// Notify the server that a response has been sent for a given message id
 	// so that it may clean up it's mapping of message ids to connections
 	// once they are no longer needed
-	#notifyResponseIdSent: (id: string | number) => void;
+	#notifyResponseIdSent: (id: string) => void;
 
 	#started = false;
-	constructor(getWebSocketForMessageID: (id: string | number) => WebSocket | null, notifyResponseIdSent: (id: string | number) => void) {
+	constructor(getWebSocketForMessageID: (id: string) => WebSocket | null, notifyResponseIdSent: (id: string | number) => void) {
 		this.#getWebSocketForMessageID = getWebSocketForMessageID;
 		this.#notifyResponseIdSent = notifyResponseIdSent;
 		// TODO
@@ -186,7 +185,7 @@ class McpTransport implements Transport {
 		try {
 			websocket?.send(JSON.stringify(message));
 			if (parsedMessage.type === 'response') {
-				this.#notifyResponseIdSent(parsedMessage.message.id);
+				this.#notifyResponseIdSent(parsedMessage.message.id.toString());
 			}
 		} catch (error) {
 			this.onerror?.(error as Error);
@@ -200,7 +199,11 @@ class McpTransport implements Transport {
 	}
 }
 
-export abstract class McpAgent<Props extends Record<string, unknown> = Record<string, unknown>> extends Agent<Env> {
+export abstract class McpAgent<
+	Props extends Record<string, unknown> = Record<string, unknown>,
+	State = unknown,
+	Env = unknown
+> extends Agent<Env, State> {
 	#connected = false;
 	#transport?: McpTransport;
 	#initialized = false;
@@ -232,9 +235,9 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 
 		// For now, each agent can only have one connection
 		// If we get an upgrade while already connected, we should error
-		if (this.#connected) {
-			return new Response('WebSocket already connected', { status: 400 });
-		}
+		// if (this.#connected) {
+		// 	return new Response('WebSocket already connected', { status: 400 });
+		// }
 
 		// Defer to the Agent's fetch method to handle the WebSocket connection
 		// PartyServer does a lot to manage the connections under the hood
@@ -243,11 +246,13 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 
 		// Connect to the MCP server
 		// TODO: This feels a little contrived
-		this.#transport = new McpTransport(
-			(id) => this.getWebSocketForResponseID(id),
-			(id) => this.#requestIdToConnectionId.delete(id)
-		);
-		await this.server.connect(this.#transport);
+		if (!this.#transport) {
+			this.#transport = new McpTransport(
+				(id) => this.getWebSocketForResponseID(id),
+				(id) => this.#requestIdToConnectionId.delete(id)
+			);
+			await this.server.connect(this.#transport);
+		}
 
 		return response;
 	}
@@ -267,7 +272,7 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 		const parsedMessage = parseMessage(message);
 		switch (parsedMessage.type) {
 			case 'request':
-				this.#requestIdToConnectionId.set(parsedMessage.message.id, connection.id);
+				this.#requestIdToConnectionId.set(parsedMessage.message.id.toString(), connection.id);
 				break;
 			case 'response':
 			case 'notification':
@@ -275,9 +280,6 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 				break;
 		}
 
-		// parse out the id of the message
-		// store the id associated with the connection
-		// pass the message to this.#transport.onmessage
 		this.#transport?.onmessage?.(message);
 	}
 
@@ -295,9 +297,9 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 		return this.#initialized;
 	}
 
-	getWebSocketForResponseID(id: string | number): WebSocket | null {
+	getWebSocketForResponseID(id: string): WebSocket | null {
 		let connectionId = this.#requestIdToConnectionId.get(id);
-		if (!connectionId) {
+		if (connectionId === undefined) {
 			return null;
 		}
 		return this.getConnection(connectionId) ?? null;
@@ -471,6 +473,7 @@ export abstract class McpAgent<Props extends Record<string, unknown> = Record<st
 				const ws = response.webSocket;
 				if (!ws) {
 					console.error('Failed to establish WebSocket connection');
+
 					await writer.close();
 					const body = JSON.stringify({
 						jsonrpc: '2.0',
