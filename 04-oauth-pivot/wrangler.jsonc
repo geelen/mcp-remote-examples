@@ -31,6 +31,9 @@
   "ai": {
     "binding": "AI"
   },
+  "images": {
+    "binding": "IMAGES"
+  },
   "observability": {
     "enabled": true
   },
