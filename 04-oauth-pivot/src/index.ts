@@ -52,15 +52,38 @@ export class MyMCP extends McpAgent<Env, null, Props> {
             .describe(
               'The number of diffusion steps; higher values can improve quality but take longer. Must be between 4 and 8, inclusive.',
             ),
+          size: z.number().default(640).describe(`The width/height of the resulting image, in pixels`),
         },
-        async ({ prompt, steps }) => {
+        async ({ prompt, steps, size }) => {
           const response = await this.env.AI.run('@cf/black-forest-labs/flux-1-schnell', {
             prompt,
             steps,
           })
 
+          // Convert base64 to Uint8Array
+          const imageData = Uint8Array.from(atob(response.image!), (c) => c.charCodeAt(0))
+
+          // Create a ReadableStream from the Uint8Array using ReadableStream.from
+          const imageStream = ReadableStream.from([imageData])
+
+          // Transform the image using Cloudflare Images
+          const transformedImageResponse = await (
+            await this.env.IMAGES.input(imageStream).transform({ width: size }).output({ format: 'image/jpeg', quality: 80 })
+          ).response()
+
+          // Convert ArrayBuffer to base64 safely (chunked conversion to avoid stack overflow)
+          const transformedImageArrayBuffer = await transformedImageResponse.arrayBuffer()
+          const bytes = new Uint8Array(transformedImageArrayBuffer)
+          let binary = ''
+          const chunkSize = 1024
+          for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+            const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength))
+            binary += String.fromCharCode.apply(null, chunk)
+          }
+          const transformedImageBase64 = btoa(binary)
+
           return {
-            content: [{ type: 'image', data: response.image!, mimeType: 'image/jpeg' }],
+            content: [{ type: 'image', data: transformedImageBase64, mimeType: 'image/jpeg' }],
           }
         },
       )
