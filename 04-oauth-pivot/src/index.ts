@@ -92,8 +92,10 @@ export class MyMCP extends McpAgent<Env, null, Props> {
 }
 
 export default new OAuthProvider({
-  apiRoute: '/sse',
-  apiHandler: MyMCP.mount('/sse'),
+  apiHandlers: {
+    '/sse': MyMCP.serveSSE('/sse'),
+    '/mcp': MyMCP.serve('/mcp'),
+  },
   defaultHandler: GitHubHandler,
   authorizeEndpoint: '/authorize',
   tokenEndpoint: '/token',
