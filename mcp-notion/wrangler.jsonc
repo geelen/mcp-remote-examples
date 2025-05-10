@@ -1,0 +1,40 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "notion-assistant",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "new_sqlite_classes": ["NotionMCP"],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "NotionMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "YOUR_KV_NAMESPACE_ID"
+    }
+  ],
+  "vars": {
+    "NOTION_CLIENT_ID": "YOUR_NOTION_CLIENT_ID",
+    "NOTION_CLIENT_SECRET": "YOUR_NOTION_CLIENT_SECRET",
+    "USE_EDGE_AUTH_PROTOCOL": "true",
+    "MCP_CALLBACK_URL": "http://localhost:3335/callback"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
